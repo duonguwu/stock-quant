@@ -19,7 +19,10 @@ def rolling_volatility(close: pd.Series, window: int = 20, method: str = 'std') 
     """
     if method == 'std':
         returns = close.pct_change()
-        return returns.rolling(window, min_periods=window//2).std()
+        vol = returns.rolling(window, min_periods=window//2).std()
+        # Replace inf and extremely large values with NaN
+        vol = vol.replace([np.inf, -np.inf], np.nan)
+        return vol
     else:
         raise ValueError(f"Method {method} not implemented. Use 'std'.")
 
@@ -69,13 +72,21 @@ def event_driven_labels(
     low = df['low'].values if use_hl and 'low' in df else close
     openp = df['open'].values if 'open' in df else close
 
-    n = len(df)
+    n = int(len(df))  # Ensure n is integer
+
+    # Validate n is positive integer
+    if n <= 0 or not np.isfinite(n):
+        raise ValueError(f"Invalid dataframe length: {n}")
+
     labels = np.zeros(n, dtype=np.int8)
-    hit_time = np.array([pd.NaT] * n, dtype='datetime64[ns]')
-    hit_type = np.array(['none'] * n, dtype=object)
+
+    # Use numpy's NaT instead of pandas NaT for array creation
+    nat_value = np.datetime64('NaT')
+    hit_time = np.full(n, nat_value, dtype='datetime64[ns]')
+    hit_type = np.full(n, 'none', dtype=object)
     ub_arr = np.full(n, np.nan)
     lb_arr = np.full(n, np.nan)
-    end_time = np.array([pd.NaT] * n, dtype='datetime64[ns]')
+    end_time = np.full(n, nat_value, dtype='datetime64[ns]')
 
     def barriers(i):
         """Calculate upper and lower barriers for position i"""
@@ -84,22 +95,30 @@ def event_driven_labels(
         # Upper barrier (take profit)
         if tp_pct is not None:
             ub = p0 * (1 + tp_pct)
-        elif tp_k is not None and vol is not None and not np.isnan(vol.iloc[i]):
-            if vol_is_pct:
-                ub = p0 * (1 + tp_k * vol.iloc[i])
+        elif tp_k is not None and vol is not None:
+            vol_val = vol.iloc[i]
+            if pd.notna(vol_val) and np.isfinite(vol_val):
+                if vol_is_pct:
+                    ub = p0 * (1 + tp_k * vol_val)
+                else:
+                    ub = p0 + tp_k * vol_val
             else:
-                ub = p0 + tp_k * vol.iloc[i]
+                ub = np.inf
         else:
             ub = np.inf
 
         # Lower barrier (stop loss)
         if sl_pct is not None:
             lb = p0 * (1 - sl_pct)
-        elif sl_k is not None and vol is not None and not np.isnan(vol.iloc[i]):
-            if vol_is_pct:
-                lb = p0 * (1 - sl_k * vol.iloc[i])
+        elif sl_k is not None and vol is not None:
+            vol_val = vol.iloc[i]
+            if pd.notna(vol_val) and np.isfinite(vol_val):
+                if vol_is_pct:
+                    lb = p0 * (1 - sl_k * vol_val)
+                else:
+                    lb = p0 - sl_k * vol_val
             else:
-                lb = p0 - sl_k * vol.iloc[i]
+                lb = -np.inf
         else:
             lb = -np.inf
 
@@ -177,7 +196,7 @@ def event_driven_labels(
                 labels[i] = 0
                 hit_type[i] = 'vbar_neutral'
             else:
-                labels[i] = np.int8((ret > 0) - (ret < 0))
+                labels[i] = np.int8(np.sign(ret))
                 hit_type[i] = 'vbar_sign'
 
             hit_time[i] = idx[j_end]
@@ -210,16 +229,16 @@ def apply_triple_barrier_labeling(
     """
     labeling_config = config.get('labeling', {})
 
-    # Extract parameters
-    N = labeling_config.get('vertical_barrier', {}).get('days', 10)
+    # Extract parameters (ensure integer types)
+    N = int(labeling_config.get('vertical_barrier', {}).get('days', 10))
     barriers = labeling_config.get('barriers', {})
     tp_pct = barriers.get('tp_pct')
     sl_pct = barriers.get('sl_pct')
-    tp_k = barriers.get('tp_k', 2.0)
-    sl_k = barriers.get('sl_k', 1.0)
+    tp_k = float(barriers.get('tp_k', 2.0)) if barriers.get('tp_k') is not None else None
+    sl_k = float(barriers.get('sl_k', 1.0)) if barriers.get('sl_k') is not None else None
 
     vol_config = labeling_config.get('volatility', {})
-    vol_window = vol_config.get('window', 20)
+    vol_window = int(vol_config.get('window', 20))
     vol_is_pct = vol_config.get('is_percentage', True)
 
     tie_policy = labeling_config.get('tie_policy', 'ambiguous')
@@ -228,30 +247,41 @@ def apply_triple_barrier_labeling(
 
     def apply_labeling_to_ticker(df):
         """Apply labeling to single ticker data"""
+        ticker = df['ticker'].iloc[0] if 'ticker' in df.columns else 'unknown'
+        logger.info(f"🔍 Labeling ticker: {ticker}, len={len(df)}")
+
         if len(df) < N + vol_window:
-            logger.warning(f"Insufficient data for ticker, skipping labeling")
+            logger.warning(f"⏭️ Skipping {ticker}, insufficient data")
             return df
 
-        # Calculate volatility
-        vol = rolling_volatility(df['close'], window=vol_window)
+        # Try-catch toàn bộ để bắt lỗi rõ ràng
+        try:
+            logger.info(f"📊 Computing volatility for {ticker}...")
+            vol = rolling_volatility(df['close'], window=vol_window)
+            logger.info(f"🎯 Calling event_driven_labels for {ticker}, N={N}...")
 
-        # Apply triple-barrier labeling
-        labels = event_driven_labels(
-            df=df,
-            N=N,
-            tp_pct=tp_pct,
-            sl_pct=sl_pct, 
-            tp_k=tp_k,
-            sl_k=sl_k,
-            vol=vol,
-            vol_is_pct=vol_is_pct,
-            use_hl=use_hl,
-            tie_policy=tie_policy,
-            min_ret=min_ret
-        )
-
-        # Join labels with original data
-        return df.join(labels)
+            labels = event_driven_labels(
+                df=df,
+                N=int(N),
+                tp_pct=tp_pct,
+                sl_pct=sl_pct,
+                tp_k=tp_k,
+                sl_k=sl_k,
+                vol=vol,
+                vol_is_pct=vol_is_pct,
+                use_hl=use_hl,
+                tie_policy=tie_policy,
+                min_ret=min_ret
+            )
+            logger.info(f"✅ Successfully labeled {ticker}")
+            return df.join(labels)
+        except Exception as e:
+            logger.error(f"❌ Failed to label ticker {ticker}: {e}")
+            logger.error(f"Debug info - df shape: {df.shape}, N: {N}, vol_window: {vol_window}")
+            logger.error(f"Parameters - tp_k: {tp_k}, sl_k: {sl_k}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            return df
 
     if 'ticker' in data.columns:
         # Group by ticker and apply labeling
@@ -260,10 +290,10 @@ def apply_triple_barrier_labeling(
     else:
         # Single ticker data
         logger.info("Applying triple-barrier labeling to single ticker...")
-        vol = rolling_volatility(data['close'], window=vol_window)
+        vol = rolling_volatility(data['close'], window=int(vol_window))
         labels = event_driven_labels(
             df=data,
-            N=N,
+            N=int(N),
             tp_pct=tp_pct,
             sl_pct=sl_pct,
             tp_k=tp_k, 

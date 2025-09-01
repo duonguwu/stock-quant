@@ -124,7 +124,7 @@ class DataPipeline:
         feature_cols = self.feature_engineer.get_feature_list(data)
 
         # Remove rows with too many missing features
-        missing_threshold = 0.5  # Remove rows with >50% missing features
+        missing_threshold = 0.8   # Remove rows with >50% missing features
         missing_counts = data[feature_cols].isnull().sum(axis=1)
         valid_rows = missing_counts <= (len(feature_cols) * missing_threshold)
         data = data[valid_rows]

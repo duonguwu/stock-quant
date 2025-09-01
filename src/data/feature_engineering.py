@@ -19,7 +19,7 @@ class FeatureEngineer:
         self.fi = client.FiinIndicator()
 
     def add_technical_indicators(
-        self, 
+        self,
         data: pd.DataFrame, 
         config: Dict[str, Any]
     ) -> pd.DataFrame:
@@ -191,6 +191,7 @@ class FeatureEngineer:
         # Volatility regime
         if 'volatility_regime_window' in regime_config:
             window = regime_config['volatility_regime_window']
+            print(f"Volatility regime window: {window}")
             returns = df['close'].pct_change()
             rolling_vol = returns.rolling(window=window).std()
             vol_quantiles = rolling_vol.quantile([0.33, 0.67])
@@ -250,6 +251,7 @@ class FeatureEngineer:
             """Process features for single ticker"""
             try:
                 # Add technical indicators
+                df = df.reset_index(drop=True)   
                 df = self.add_technical_indicators(df, config)
 
                 # Add price features

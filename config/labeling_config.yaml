@@ -24,7 +24,7 @@ labeling:
   tie_policy: "ambiguous"  # ambiguous, tp, sl, closest
   
   # Minimum return threshold for neutral zone
-  min_ret: 0.002  # 0.2% minimum return to avoid noise
+  min_ret: 0.01  # 0.2% minimum return to avoid noise
   
   # Use high/low for barrier checking (more realistic)
   use_hl: true
@@ -47,7 +47,7 @@ labels:
 optimization:
   # Grid search ranges for labeling parameters
   param_grid:
-    N: [5, 10, 15, 20]
+    N: [5, 10, 15, 20, 30]
     tp_k: [1.5, 2.0, 2.5, 3.0]
     sl_k: [0.5, 1.0, 1.5, 2.0]
     vol_window: [10, 20, 30]

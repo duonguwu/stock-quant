@@ -1,12 +1,13 @@
 # Data Configuration
 data:
   # Tickers to fetch
-  universe: "VN30"  # VN30, VN100, or custom list
-  custom_tickers: ["HPG", "VCB", "VIC", "VNM", "TCB", "BID", "CTG", "VRE", "MSN", "PLX"]
-  
+  universe: null  # VN30, VN100, or custom list, tui để null để tắt đi
+  # custom_tickers: ['BID', 'MBB']
+  custom_tickers: ['BID', 'MBB', 'ACB', 'HDB', 'STB', 'VIB', 'NAB', 'QNS', 'GEE', 'HAH', 'MSH', 'BFC', 'NTL', 'HBC', 'PDV']
+
   # Time range
   start_date: "2020-01-01"
-  end_date: null  # null means current date
+  end_date: "2024-12-31"  # null means current date
   
   # Data frequency
   timeframe: "1d"  # 1d, 1h, 15m, etc.
@@ -55,15 +56,19 @@ features:
   
   # Price-based features
   price_features:
-    returns_periods: [1, 5, 10, 20]
+    returns_periods: [1, 5, 10, 20, 60, 120]
     volatility_window: 20
     volume_ratio_window: 20
   
   # Market regime features
   regime_features:
-    trend_window: 50
-    volatility_regime_window: 252
+    trend_window: 100 
+    volatility_regime_window: 126
 
+  # Trend window 100 ngày (~5 tháng) giúp model 
+  # nắm được hướng đi dài hơi hơn so với 50 ngày.
+  # Volatility regime 126 ngày (~6 tháng) phản ứng nhanh hơn 252 ngày (~1 năm) 
+  # nhưng vẫn đủ dài để phân biệt chế độ biến động.
 # Data splits
 splits:
   train_ratio: 0.6

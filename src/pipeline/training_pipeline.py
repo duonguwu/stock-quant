@@ -105,9 +105,9 @@ class TrainingPipeline:
         feature_names = X_train.columns.tolist()
 
         # Prepare training data
-        X_train_scaled, y_train_encoded = self.trainer.prepare_data(X_train, y_train)
-        X_val_scaled, y_val_encoded = self.trainer.prepare_data(X_val, y_val, scale_features=False)
-        X_test_scaled, y_test_encoded = self.trainer.prepare_data(X_test, y_test, scale_features=False)
+        X_train_scaled, y_train_encoded = self.trainer.prepare_data(X_train, y_train, scale_features=True)
+        X_val_scaled, y_val_encoded = self.trainer.prepare_data(X_val, y_val, scale_features=True)
+        X_test_scaled, y_test_encoded = self.trainer.prepare_data(X_test, y_test, scale_features=True)
 
         # Calculate sample weights for class balancing
         sample_weights = self.trainer.calculate_sample_weights(y_train_encoded)
