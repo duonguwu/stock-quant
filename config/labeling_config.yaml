@@ -1,0 +1,59 @@
+# Triple-Barrier Labeling Configuration
+labeling:
+  # Barrier settings
+  vertical_barrier:
+    days: 10  # Maximum holding period
+  
+  # Take Profit / Stop Loss
+  barriers:
+    # Option 1: Fixed percentage
+    tp_pct: null  # e.g., 0.03 for 3%
+    sl_pct: null  # e.g., 0.02 for 2%
+    
+    # Option 2: Volatility-scaled (recommended)
+    tp_k: 2.0    # TP = price * (1 + tp_k * volatility)
+    sl_k: 1.0    # SL = price * (1 - sl_k * volatility)
+  
+  # Volatility calculation
+  volatility:
+    window: 20
+    method: "std"  # std, atr
+    is_percentage: true  # true for return std, false for price std
+  
+  # Tie handling when both TP and SL hit same bar
+  tie_policy: "ambiguous"  # ambiguous, tp, sl, closest
+  
+  # Minimum return threshold for neutral zone
+  min_ret: 0.002  # 0.2% minimum return to avoid noise
+  
+  # Use high/low for barrier checking (more realistic)
+  use_hl: true
+
+# Label encoding
+labels:
+  # Class mapping
+  class_names:
+    -1: "Sell"
+    0: "Hold" 
+    1: "Buy"
+  
+  # Distribution analysis
+  expected_distribution:
+    sell: 0.25    # Expected % of sell signals
+    hold: 0.50    # Expected % of hold signals  
+    buy: 0.25     # Expected % of buy signals
+
+# Grid search for optimal parameters
+optimization:
+  # Grid search ranges for labeling parameters
+  param_grid:
+    N: [5, 10, 15, 20]
+    tp_k: [1.5, 2.0, 2.5, 3.0]
+    sl_k: [0.5, 1.0, 1.5, 2.0]
+    vol_window: [10, 20, 30]
+  
+  # Optimization metric
+  metric: "sharpe_ratio"  # sharpe_ratio, accuracy, f1_macro
+  
+  # Validation
+  cv_folds: 3 

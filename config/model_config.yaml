@@ -1,0 +1,120 @@
+# XGBoost Model Configuration
+model:
+  # Model type
+  algorithm: "xgboost"
+  
+  # XGBoost parameters
+  xgboost:
+    # Core parameters
+    objective: "multi:softprob"
+    num_class: 3
+    eval_metric: "mlogloss"
+    
+    # Learning parameters
+    learning_rate: 0.1
+    max_depth: 6
+    min_child_weight: 1
+    subsample: 0.8
+    colsample_bytree: 0.8
+    
+    # Regularization
+    reg_alpha: 0
+    reg_lambda: 1
+    gamma: 0
+    
+    # Other parameters
+    random_state: 42
+    n_jobs: -1
+    verbosity: 1
+  
+  # Training parameters
+  training:
+    n_estimators: 1000
+    early_stopping_rounds: 50
+    validation_split: 0.2
+    
+    # Class balancing
+    scale_pos_weight: null  # auto-calculate or set manually
+    class_weight: "balanced"  # None or "balanced"
+
+# Feature selection
+feature_selection:
+  # Method
+  method: "importance"  # importance, correlation, mutual_info
+  
+  # Parameters
+  max_features: 50
+  importance_threshold: 0.001
+  correlation_threshold: 0.95
+
+# Cross-validation
+cross_validation:
+  # Time series CV
+  method: "time_series"  # time_series, walk_forward
+  n_splits: 5
+  test_size: 0.2
+  
+  # Walk-forward specific
+  expanding_window: true
+  min_train_size: 500
+
+# Hyperparameter optimization
+hyperopt:
+  # Enable optimization
+  enabled: true
+  
+  # Optimization method
+  method: "optuna"  # optuna, grid_search, random_search
+  
+  # Trials
+  n_trials: 100
+  timeout: 3600  # 1 hour
+  
+  # Search space
+  search_space:
+    learning_rate: [0.01, 0.3]
+    max_depth: [3, 10]
+    min_child_weight: [1, 10]
+    subsample: [0.6, 1.0]
+    colsample_bytree: [0.6, 1.0]
+    reg_alpha: [0, 1]
+    reg_lambda: [0, 2]
+
+# Model evaluation
+evaluation:
+  # Metrics to track
+  metrics:
+    - "accuracy"
+    - "precision_macro"
+    - "recall_macro"
+    - "f1_macro"
+    - "roc_auc_ovr"
+  
+  # Economic metrics (for backtesting)
+  economic_metrics:
+    - "sharpe_ratio"
+    - "sortino_ratio"
+    - "max_drawdown"
+    - "profit_factor"
+    - "hit_rate"
+  
+  # Confusion matrix
+  plot_confusion_matrix: true
+  
+  # Feature importance
+  plot_feature_importance: true
+  top_features: 20
+
+# Model persistence
+persistence:
+  # Save model
+  save_model: true
+  model_path: "models/xgboost_model.pkl"
+  
+  # Save scaler
+  save_scaler: true
+  scaler_path: "models/feature_scaler.pkl"
+  
+  # Model versioning
+  versioning: true
+  version_format: "%Y%m%d_%H%M%S" 

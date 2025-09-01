@@ -1,0 +1,75 @@
+# Data Configuration
+data:
+  # Tickers to fetch
+  universe: "VN30"  # VN30, VN100, or custom list
+  custom_tickers: ["HPG", "VCB", "VIC", "VNM", "TCB", "BID", "CTG", "VRE", "MSN", "PLX"]
+  
+  # Time range
+  start_date: "2020-01-01"
+  end_date: null  # null means current date
+  
+  # Data frequency
+  timeframe: "1d"  # 1d, 1h, 15m, etc.
+  
+  # Fields to fetch from FiinQuantX
+  fields:
+    - "open"
+    - "high" 
+    - "low"
+    - "close"
+    - "volume"
+    - "bu"      # Buy volume (active buying)
+    - "sd"      # Sell volume (active selling)
+  
+  # Data processing
+  adjusted: true
+  fill_method: "ffill"  # forward fill for prices
+  volume_fill: 0        # fill volume with 0
+
+# Feature Engineering
+features:
+  # Technical Indicators
+  technical_indicators:
+    # Trend indicators
+    ema_periods: [5, 10, 20, 50]
+    sma_periods: [10, 20, 50]
+    macd:
+      fast: 12
+      slow: 26
+      signal: 9
+    adx_period: 14
+    
+    # Momentum indicators
+    rsi_period: 14
+    stoch_period: 14
+    
+    # Volatility indicators
+    bollinger:
+      period: 20
+      std_dev: 2
+    atr_period: 14
+    
+    # Volume indicators
+    mfi_period: 14
+    vwap_period: 14
+  
+  # Price-based features
+  price_features:
+    returns_periods: [1, 5, 10, 20]
+    volatility_window: 20
+    volume_ratio_window: 20
+  
+  # Market regime features
+  regime_features:
+    trend_window: 50
+    volatility_regime_window: 252
+
+# Data splits
+splits:
+  train_ratio: 0.6
+  validation_ratio: 0.2
+  test_ratio: 0.2
+  
+  # Time-based split (walk-forward)
+  min_train_samples: 500
+  expanding_window: true 
