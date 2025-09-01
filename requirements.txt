@@ -32,6 +32,11 @@ loguru>=0.7.0
 # Environment variables
 python-dotenv>=1.0.0
 
+# Backtesting and visualization
+yfinance>=0.2.0
+matplotlib>=3.5.0
+seaborn>=0.11.0
+
 # Development
 pytest>=7.0.0
 black>=22.0.0

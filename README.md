@@ -25,6 +25,9 @@ cp env.example .env
 
 # Chạy toàn bộ pipeline
 python main.py
+
+# Chạy backtesting (sau khi train model)
+python backtest.py
 ```
 
 ## Tính năng chính
@@ -33,6 +36,7 @@ python main.py
 - **Technical Indicators**: 30+ chỉ báo từ FiinQuantX (EMA, RSI, MACD, ATR, etc.)
 - **XGBoost Model**: Với hyperparameter optimization và time-series CV
 - **Automated Pipeline**: Từ raw data đến trained model
+- **Comprehensive Backtesting**: Đánh giá hiệu suất với VN-Index benchmark
 
 ## Cấu trúc dự án
 
@@ -51,4 +55,5 @@ stock-quant/
 - **[SETUP.md](SETUP.md)**: Hướng dẫn setup nhanh cho người mới
 - **[DOCUMENTATION.md](DOCUMENTATION.md)**: Chi tiết kỹ thuật và pipeline architecture
 - **[Q&A.md](Q&A.md)**: Hỏi đáp chi tiết về hệ thống và troubleshooting
+- **[BACKTEST_GUIDE.md](BACKTEST_GUIDE.md)**: Hướng dẫn backtesting và đánh giá hiệu suất
 - **[planning.md](planning.md)**: Kế hoạch phát triển và technical approach
