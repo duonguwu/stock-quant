@@ -3,9 +3,9 @@
 *.env
 
 # Data files
-data/raw/
-data/processed/ 
-data/final/
+# data/raw/
+# data/processed/ 
+# data/final/
 
 # Model files  
 models/
@@ -17,7 +17,7 @@ logs/
 *.log
 
 # Results
-results/
+# results/
 
 # Python
 __pycache__/

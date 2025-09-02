@@ -1,0 +1,24 @@
+{
+  "performance": {
+    "total_return": 1.1862546454544387,
+    "annualized_return": 1.2412810532966523,
+    "volatility": 0.9885227712734145,
+    "sharpe_ratio": 1.25569292824447,
+    "max_drawdown": -0.4929672472069363
+  },
+  "trading": {
+    "total_trades": 98,
+    "winning_trades": 54,
+    "losing_trades": 44,
+    "win_rate": 0.5510204081632653,
+    "avg_win": 0.04936399143262271,
+    "avg_loss": -0.038568905151339296,
+    "profit_factor": 1.5707752179343024
+  },
+  "benchmark": {
+    "benchmark_return": 0.11233220749978368,
+    "excess_return": 1.1289488457968686,
+    "beta": 1.2872608327445623,
+    "alpha": 0.008424337796104296
+  }
+}

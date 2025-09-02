@@ -83,7 +83,7 @@ Examples:
 
     parser.add_argument(
         "--test-data",
-        default="data/final/custom_test_data.csv",
+        default="data/backtest_data/custom_test_data_20250902_180650.csv",
         help=(
             "Path to test data CSV "
             "(default: data/final/test_data.csv)"

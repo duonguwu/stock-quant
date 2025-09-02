@@ -49,7 +49,7 @@ if __name__ == "__main__":
         'MSH', 'BFC', 'NTL', 'HBC', 'PDV',
     ]
     start_date = "2021-01-01"
-    end_date = "2024-12-31"
+    end_date = "2021-12-31"
 
     # Load config
     config = {}
