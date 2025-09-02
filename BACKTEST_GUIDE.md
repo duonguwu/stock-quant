@@ -27,7 +27,7 @@ Backtesting system đánh giá hiệu suất trading strategy của mô hình ML
 
 3. **Dependencies đã cài đặt:**
    ```bash
-   pip install yfinance matplotlib seaborn
+   pip install matplotlib seaborn python-dotenv FiinQuantX loguru
    ```
 
 ## Cách sử dụng
@@ -249,3 +249,62 @@ Sau khi có kết quả backtest tốt:
 2. **Strategy refinement**: Optimize parameters
 3. **Risk management**: Add position sizing, stop losses
 4. **Production deployment**: Automate signal generation 
+
+---
+
+# Bổ sung: Tạo dữ liệu test theo khoảng thời gian mong muốn
+
+Script `run_custom_backtest.py` cho phép chọn danh sách mã, khoảng thời gian và tạo
+file test data mới trong thư mục `data/backtest_data` với tên duy nhất (timestamp),
+không ghi đè file cũ.
+
+```bash
+python run_custom_backtest.py
+# Output: data/backtest_data/custom_test_data_YYYYMMDD_HHMMSS.csv
+```
+
+Sau khi tạo file, dùng tham số `--test-data` để chỉ định file khi chạy backtest:
+
+```bash
+python backtest.py \
+  --test-data data/backtest_data/custom_test_data_YYYYMMDD_HHMMSS.csv
+```
+
+# Bổ sung: Thư mục kết quả backtest tự tăng (backtest_N)
+
+Khi chạy `backtest.py`, hệ thống tự động tạo thư mục kết quả mới dạng `backtest_N`
+trong `results/backtest` (hoặc base dir bạn chỉ định qua `--output`). Ví dụ:
+
+```
+results/backtest/
+├── backtest_1/
+├── backtest_2/
+└── backtest_3/
+```
+
+Trong mỗi thư mục có kèm `config.md` ghi rõ cấu hình chạy (model, scaler, test data,
+confidence, holding period, transaction cost, timestamp) để bạn dễ truy vết.
+
+# Bổ sung: Gợi ý cửa sổ dữ liệu (WINDOW) cho Production/Backtest
+
+Dựa theo thiết kế features, cửa sổ lớn nhất cần để tính đầy đủ feature là:
+
+- EMA/SMA: tối đa 50
+- MACD (slow): 26 (≤ 50)
+- Bollinger: 20
+- Price Returns: 120
+- Regime trend: 100
+- Volatility regime: 126 (LỚN NHẤT)
+
+Khuyến nghị:
+- Dự phòng ngày nghỉ/sàn lỗi: cộng thêm buffer 10–20 ngày.
+- Nếu dự báo cho ngày D, nên lấy dữ liệu từ: **D − 146 ngày đến D**
+  (126 + ~20 ngày buffer, ~5 tháng gần nhất).
+
+Công thức tổng quát:
+
+```
+start_date = as_of_date − (max_window + buffer)
+end_date   = as_of_date
+# Với max_window = 126, buffer ≈ 20 → tổng ≈ 146 ngày
+``` 

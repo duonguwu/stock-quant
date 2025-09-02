@@ -1,13 +1,16 @@
 """Backtesting engine for trading strategy evaluation"""
 
+import os
 import pandas as pd
 import numpy as np
 import joblib
-from typing import Dict, List, Tuple, Optional, Any
+from typing import List, Tuple, Optional
 from dataclasses import dataclass
-from datetime import datetime
 from loguru import logger
-import yfinance as yf
+
+from ..data.data_fetcher import FiinDataFetcher
+from FiinQuantX import FiinSession
+from dotenv import load_dotenv
 
 
 @dataclass
@@ -55,6 +58,32 @@ class BacktestResults:
     drawdown_curve: pd.DataFrame
 
 
+def get_benchmark_returns_from_fiin(start_date: str, end_date: str) -> pd.DataFrame:
+    """Fetch VNINDEX daily returns from FiinQuantX between specified dates."""
+    load_dotenv()
+
+    client = FiinSession(
+        username=os.getenv("FIIN_USERNAME"),
+        password=os.getenv("FIIN_PASSWORD"),
+    ).login()
+
+    event = client.Fetch_Trading_Data(
+        realtime=False,
+        tickers=["VNINDEX"],
+        fields=["close"],
+        adjusted=True,
+        by="1d",
+        from_date=start_date,
+        to_date=end_date
+    )
+    benchmark_df = event.get_data()
+    benchmark_df.set_index("timestamp", inplace=True)
+    benchmark_df.sort_index(inplace=True)
+
+    benchmark_df["return"] = benchmark_df["close"].pct_change()
+    return benchmark_df
+
+
 class BacktestEngine:
     """Backtesting engine for model evaluation"""
 
@@ -98,7 +127,9 @@ class BacktestEngine:
 
         return pd.DataFrame(X_scaled, columns=feature_cols, index=data.index)
 
-    def generate_signals(self, data: pd.DataFrame, confidence_threshold: float = 0.6) -> pd.DataFrame:
+    def generate_signals(
+        self, data: pd.DataFrame, confidence_threshold: float = 0.6
+    ) -> pd.DataFrame:
         """Generate trading signals from model predictions
 
         Args:
@@ -120,25 +151,37 @@ class BacktestEngine:
 
         # Apply confidence threshold
         signals = predictions.copy()
-        signals[confidence < confidence_threshold] = 0  # Hold if low confidence
+        label_map = {0: -1, 1: 0, 2: 1}
+        signals = np.vectorize(label_map.get)(predictions)
+        # Hold if low confidence
+        signals[confidence < confidence_threshold] = 0
 
         # Create signals DataFrame
-        signals_df = pd.DataFrame({
-            'signal': signals,
-            'confidence': confidence,
-            'prob_sell': probabilities[:, 0] if probabilities.shape[1] > 0 else 0,
-            'prob_hold': probabilities[:, 1] if probabilities.shape[1] > 1 else 0,
-            'prob_buy': probabilities[:, 2] if probabilities.shape[1] > 2 else 0,
-        }, index=data.index)
+        signals_df = pd.DataFrame(
+            {
+                'signal': signals,
+                'confidence': confidence,
+                'prob_sell': (
+                    probabilities[:, 0] if probabilities.shape[1] > 0 else 0
+                ),
+                'prob_hold': (
+                    probabilities[:, 1] if probabilities.shape[1] > 1 else 0
+                ),
+                'prob_buy': (
+                    probabilities[:, 2] if probabilities.shape[1] > 2 else 0
+                ),
+            },
+            index=data.index,
+        )
 
         return signals_df
 
     def simulate_trades(
-        self, 
-        data: pd.DataFrame, 
+        self,
+        data: pd.DataFrame,
         signals: pd.DataFrame,
         holding_period: int = 10,
-        transaction_cost: float = 0.001
+        transaction_cost: float = 0.001,
     ) -> List[Trade]:
         """Simulate trading based on signals
 
@@ -158,28 +201,38 @@ class BacktestEngine:
             ticker_data = data[data['ticker'] == ticker].copy()
             ticker_signals = signals.loc[ticker_data.index].copy()
 
-            trades.extend(self._simulate_ticker_trades(
-                ticker_data, ticker_signals, ticker, holding_period, transaction_cost
-            ))
+            trades.extend(
+                self._simulate_ticker_trades(
+                    ticker_data,
+                    ticker_signals,
+                    ticker,
+                    holding_period,
+                    transaction_cost,
+                )
+            )
 
-        logger.info(f"Simulated {len(trades)} trades across {len(data['ticker'].unique())} tickers")
+        logger.info(
+            "Simulated %d trades across %d tickers",
+            len(trades),
+            len(data['ticker'].unique()),
+        )
         return trades
 
     def _simulate_ticker_trades(
         self,
         data: pd.DataFrame,
-        signals: pd.DataFrame, 
+        signals: pd.DataFrame,
         ticker: str,
         holding_period: int,
-        transaction_cost: float
+        transaction_cost: float,
     ) -> List[Trade]:
-        """Simulate trades for single ticker"""
+        """Simulate trades for single ticker (long-only for VN stock market)"""
         trades = []
-        position = 0  # 0: no position, 1: long, -1: short
+        position = 0  # 0: no position, 1: holding
         entry_date = None
         entry_price = None
-        entry_signal = None
         entry_confidence = None
+        entry_idx = None
 
         for i, (idx, row) in enumerate(data.iterrows()):
             current_signal = signals.loc[idx, 'signal']
@@ -187,68 +240,74 @@ class BacktestEngine:
             current_price = row['close']
             current_date = row['timestamp']
 
-            # Check for position exit conditions
-            if position != 0:
+            # ======= LOGIC LONG-ONLY =======
+            if position == 0:
+                # Chỉ MUA khi signal == 1, chưa holding
+                if current_signal == 1:
+                    position = 1
+                    entry_date = current_date
+                    # Mua tính phí ngay
+                    entry_price = current_price * (1 + transaction_cost)
+                    entry_confidence = current_confidence
+                    entry_idx = i
+
+            elif position == 1:
                 days_held = i - entry_idx
-                should_exit = False
-                exit_reason = ""
 
-                # Exit conditions
-                if days_held >= holding_period:
-                    should_exit = True
-                    exit_reason = "max_holding"
-                elif current_signal != 0 and current_signal != entry_signal:
-                    should_exit = True
-                    exit_reason = "signal_change"
-                elif current_signal == 0:
-                    should_exit = True
-                    exit_reason = "hold_signal"
+                # Điều kiện BÁN: signal == -1, hoặc hết holding period
+                if current_signal == -1 or days_held >= holding_period:
+                    # Bán tính phí
+                    exit_price = current_price * (1 - transaction_cost)
+                    return_pct = (exit_price - entry_price) / entry_price
 
-                if should_exit:
-                    # Calculate return
-                    if entry_signal == 1:  # Long position
-                        return_pct = (current_price - entry_price) / entry_price - transaction_cost
-                    else:  # Short position (signal == -1)
-                        return_pct = (entry_price - current_price) / entry_price - transaction_cost
-
-                    # Record trade
                     trade = Trade(
                         entry_date=entry_date,
                         exit_date=current_date,
                         ticker=ticker,
-                        signal=entry_signal,
+                        signal=1,  # Entry luôn là 1
                         entry_price=entry_price,
-                        exit_price=current_price,
+                        exit_price=exit_price,
                         return_pct=return_pct,
                         holding_days=days_held,
-                        confidence=entry_confidence
+                        confidence=entry_confidence,
                     )
                     trades.append(trade)
 
-                    # Reset position
+                    # Reset trạng thái
                     position = 0
                     entry_date = None
                     entry_price = None
-                    entry_signal = None
                     entry_confidence = None
+                    entry_idx = None
 
-            # Check for new position entry
-            if position == 0 and current_signal != 0:
-                position = current_signal
-                entry_date = current_date
-                entry_price = current_price
-                entry_signal = current_signal
-                entry_confidence = current_confidence
-                entry_idx = i
+            # Luôn bỏ qua signal == 0 (hold)
+            # Không bao giờ mở lệnh short!
+
+        # Nếu đến cuối mà vẫn còn holding, tự động bán ra cuối kỳ
+        if position == 1:
+            last_price = data.iloc[-1]['close'] * (1 - transaction_cost)
+            days_held = len(data) - entry_idx - 1
+            trade = Trade(
+                entry_date=entry_date,
+                exit_date=data.iloc[-1]['timestamp'],
+                ticker=ticker,
+                signal=1,
+                entry_price=entry_price,
+                exit_price=last_price,
+                return_pct=(last_price - entry_price) / entry_price,
+                holding_days=days_held,
+                confidence=entry_confidence,
+            )
+            trades.append(trade)
 
         return trades
 
     def calculate_performance_metrics(
-        self, 
+        self,
         trades: List[Trade],
         start_date: str,
         end_date: str,
-        benchmark_ticker: str = "^VNI"
+        benchmark_ticker: str = "^VNI",
     ) -> BacktestResults:
         """Calculate comprehensive performance metrics
 
@@ -256,7 +315,7 @@ class BacktestEngine:
             trades: List of executed trades
             start_date: Strategy start date
             end_date: Strategy end date
-            benchmark_ticker: Benchmark ticker symbol
+            benchmark_ticker: Benchmark ticker symbol (ignored when using Fiin)
 
         Returns:
             BacktestResults with all metrics
@@ -266,29 +325,41 @@ class BacktestEngine:
             return self._empty_results()
 
         # Convert trades to DataFrame for analysis
-        trades_df = pd.DataFrame([
-            {
-                'entry_date': t.entry_date,
-                'exit_date': t.exit_date,
-                'ticker': t.ticker,
-                'signal': t.signal,
-                'return_pct': t.return_pct,
-                'holding_days': t.holding_days,
-                'confidence': t.confidence
-            }
-            for t in trades
-        ])
+        trades_df = pd.DataFrame(
+            [
+                {
+                    'entry_date': t.entry_date,
+                    'exit_date': t.exit_date,
+                    'ticker': t.ticker,
+                    'signal': t.signal,
+                    'return_pct': t.return_pct,
+                    'holding_days': t.holding_days,
+                    'confidence': t.confidence,
+                }
+                for t in trades
+            ]
+        )
 
         # Strategy Performance
         strategy_returns = trades_df['return_pct'].values
         total_return = (1 + strategy_returns).prod() - 1
 
         # Annualized metrics
-        days_total = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+        days_total = (
+            pd.to_datetime(end_date) - pd.to_datetime(start_date)
+        ).days
         years = days_total / 365.25
-        annualized_return = (1 + total_return) ** (1/years) - 1 if years > 0 else 0
-        volatility = np.std(strategy_returns) * np.sqrt(252) if len(strategy_returns) > 1 else 0
-        sharpe_ratio = annualized_return / volatility if volatility > 0 else 0
+        annualized_return = (
+            (1 + total_return) ** (1 / years) - 1 if years > 0 else 0
+        )
+        volatility = (
+            np.std(strategy_returns) * np.sqrt(252)
+            if len(strategy_returns) > 1
+            else 0
+        )
+        sharpe_ratio = (
+            annualized_return / volatility if volatility > 0 else 0
+        )
 
         # Drawdown calculation
         cumulative_returns = (1 + strategy_returns).cumprod()
@@ -302,13 +373,28 @@ class BacktestEngine:
         losing_trades = len(trades_df[trades_df['return_pct'] < 0])
         win_rate = winning_trades / total_trades if total_trades > 0 else 0
 
-        avg_win = trades_df[trades_df['return_pct'] > 0]['return_pct'].mean() if winning_trades > 0 else 0
-        avg_loss = trades_df[trades_df['return_pct'] < 0]['return_pct'].mean() if losing_trades > 0 else 0
-        profit_factor = (winning_trades * avg_win) / abs(losing_trades * avg_loss) if losing_trades > 0 and avg_loss != 0 else float('inf')
+        avg_win = (
+            trades_df[trades_df['return_pct'] > 0]['return_pct'].mean()
+            if winning_trades > 0
+            else 0
+        )
+        avg_loss = (
+            trades_df[trades_df['return_pct'] < 0]['return_pct'].mean()
+            if losing_trades > 0
+            else 0
+        )
+        profit_factor = (
+            (winning_trades * avg_win) / abs(losing_trades * avg_loss)
+            if losing_trades > 0 and avg_loss != 0
+            else float('inf')
+        )
 
-        # Benchmark comparison
+        # Benchmark comparison via Fiin
+        benchmark_df: Optional[pd.DataFrame] = None
+        benchmark_df = get_benchmark_returns_from_fiin(start_date, end_date)
+
         benchmark_return, beta, alpha = self._calculate_benchmark_metrics(
-            strategy_returns, start_date, end_date, benchmark_ticker
+            strategy_returns, start_date, end_date, benchmark_df
         )
         excess_return = annualized_return - benchmark_return
 
@@ -335,51 +421,45 @@ class BacktestEngine:
             alpha=alpha,
             trades=trades,
             equity_curve=equity_curve,
-            drawdown_curve=drawdown_curve
+            drawdown_curve=drawdown_curve,
         )
 
     def _calculate_benchmark_metrics(
-        self, 
+        self,
         strategy_returns: np.ndarray,
         start_date: str,
         end_date: str,
-        benchmark_ticker: str
+        benchmark_returns: Optional[pd.DataFrame] = None,
     ) -> Tuple[float, float, float]:
-        """Calculate benchmark comparison metrics"""
-        try:
-            # Download benchmark data
-            benchmark = yf.download(benchmark_ticker, start=start_date, end=end_date, progress=False)
-            benchmark_returns = benchmark['Adj Close'].pct_change().dropna().values
-
-            if len(benchmark_returns) == 0:
-                return 0.0, 0.0, 0.0
-
-            # Align lengths
-            min_len = min(len(strategy_returns), len(benchmark_returns))
-            strategy_returns = strategy_returns[:min_len]
-            benchmark_returns = benchmark_returns[:min_len]
-
-            # Calculate metrics
-            benchmark_total_return = (1 + benchmark_returns).prod() - 1
-
-            # Beta and Alpha
-            if len(strategy_returns) > 1 and len(benchmark_returns) > 1:
-                covariance = np.cov(strategy_returns, benchmark_returns)[0, 1]
-                benchmark_variance = np.var(benchmark_returns)
-                beta = covariance / benchmark_variance if benchmark_variance > 0 else 0
-
-                strategy_mean = np.mean(strategy_returns)
-                benchmark_mean = np.mean(benchmark_returns)
-                alpha = strategy_mean - beta * benchmark_mean
-            else:
-                beta = 0
-                alpha = 0
-
-            return benchmark_total_return, beta, alpha
-
-        except Exception as e:
-            logger.warning(f"Could not fetch benchmark data: {e}")
+        """Calculate benchmark comparison metrics using provided benchmark returns."""
+        if benchmark_returns is None or benchmark_returns.empty:
             return 0.0, 0.0, 0.0
+
+        # Lấy return, loại bỏ NaN
+        benchmark_r = benchmark_returns['return'].dropna().values
+
+        # Align lengths
+        min_len = min(len(strategy_returns), len(benchmark_r))
+        strategy_aligned = strategy_returns[:min_len]
+        benchmark_aligned = benchmark_r[:min_len]
+
+        # Tổng return benchmark
+        benchmark_total_return = (1 + benchmark_aligned).prod() - 1
+
+        # Tính beta và alpha
+        if len(strategy_aligned) > 1 and len(benchmark_aligned) > 1:
+            covariance = np.cov(strategy_aligned, benchmark_aligned)[0, 1]
+            benchmark_variance = np.var(benchmark_aligned)
+            beta = covariance / benchmark_variance if benchmark_variance > 0 else 0
+
+            strategy_mean = np.mean(strategy_aligned)
+            benchmark_mean = np.mean(benchmark_aligned)
+            alpha = strategy_mean - beta * benchmark_mean
+        else:
+            beta = 0
+            alpha = 0
+
+        return benchmark_total_return, beta, alpha
 
     def _create_equity_curve(self, trades_df: pd.DataFrame) -> pd.DataFrame:
         """Create equity curve from trades"""
@@ -389,7 +469,7 @@ class BacktestEngine:
         equity_curve = pd.DataFrame({
             'date': trades_df_sorted['exit_date'],
             'equity': cumulative_return,
-            'return': trades_df_sorted['return_pct']
+            'return': trades_df_sorted['return_pct'],
         })
 
         return equity_curve.reset_index(drop=True)
@@ -401,16 +481,31 @@ class BacktestEngine:
 
         return pd.DataFrame({
             'date': equity_curve['date'],
-            'drawdown': drawdown
+            'drawdown': drawdown,
         })
 
     def _empty_results(self) -> BacktestResults:
         """Return empty results when no trades"""
         return BacktestResults(
-            total_return=0.0, annualized_return=0.0, volatility=0.0, sharpe_ratio=0.0, max_drawdown=0.0,
-            total_trades=0, winning_trades=0, losing_trades=0, win_rate=0.0, avg_win=0.0, avg_loss=0.0, profit_factor=0.0,
-            benchmark_return=0.0, excess_return=0.0, beta=0.0, alpha=0.0,
-            trades=[], equity_curve=pd.DataFrame(), drawdown_curve=pd.DataFrame()
+            total_return=0.0,
+            annualized_return=0.0,
+            volatility=0.0,
+            sharpe_ratio=0.0,
+            max_drawdown=0.0,
+            total_trades=0,
+            winning_trades=0,
+            losing_trades=0,
+            win_rate=0.0,
+            avg_win=0.0,
+            avg_loss=0.0,
+            profit_factor=0.0,
+            benchmark_return=0.0,
+            excess_return=0.0,
+            beta=0.0,
+            alpha=0.0,
+            trades=[],
+            equity_curve=pd.DataFrame(),
+            drawdown_curve=pd.DataFrame(),
         )
 
     def run_backtest(
@@ -419,7 +514,7 @@ class BacktestEngine:
         confidence_threshold: float = 0.6,
         holding_period: int = 10,
         transaction_cost: float = 0.001,
-        benchmark_ticker: str = "^VNI"
+        benchmark_ticker: str = "^VNI",
     ) -> BacktestResults:
         """Run complete backtest
 
@@ -437,7 +532,14 @@ class BacktestEngine:
 
         # Generate trading signals
         signals = self.generate_signals(test_data, confidence_threshold)
-        logger.info(f"Generated signals - Buy: {sum(signals['signal'] == 1)}, Sell: {sum(signals['signal'] == -1)}, Hold: {sum(signals['signal'] == 0)}")
+        print(signals['signal'].value_counts())
+        print(signals['confidence'].describe())
+        logger.info(
+            "Generated signals - Buy: %d, Sell: %d, Hold: %d",
+            int(sum(signals['signal'] == 1)),
+            int(sum(signals['signal'] == -1)),
+            int(sum(signals['signal'] == 0)),
+        )
 
         # Simulate trades
         trades = self.simulate_trades(

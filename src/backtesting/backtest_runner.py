@@ -13,7 +13,7 @@ from .backtest_engine import create_backtest_engine, BacktestResults
 class BacktestRunner:
     """Runner for backtesting with reporting"""
 
-    def __init__(self, model_path: str = "models/xgboost_model.pkl", 
+    def __init__(self, model_path: str = "models/xgboost_model.pkl",
                  scaler_path: str = "models/feature_scaler.pkl"):
         """Initialize backtest runner
 
@@ -26,7 +26,7 @@ class BacktestRunner:
 
     def run_backtest(
         self,
-        test_data_path: str = "data/final/test_data.csv",
+        test_data_path: str = "data/final/custom_test_data.csv",
         confidence_threshold: float = 0.6,
         holding_period: int = 10,
         transaction_cost: float = 0.001,
@@ -68,7 +68,9 @@ class BacktestRunner:
             output_dir: Directory to save report files
         """
         if self.results is None:
-            raise ValueError("No backtest results available. Run backtest first.")
+            raise ValueError(
+                "No backtest results available. Run backtest first."
+            )
 
         output_path = Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
@@ -121,22 +123,34 @@ class BacktestRunner:
             buy_trades = len([t for t in results.trades if t.signal == 1])
             sell_trades = len([t for t in results.trades if t.signal == -1])
 
-            summary += f"""
-- **Buy Signals**: {buy_trades:,} ({buy_trades/results.total_trades:.1%})
-- **Sell Signals**: {sell_trades:,} ({sell_trades/results.total_trades:.1%})
+            summary += (
+                f"- **Buy Signals**: {buy_trades:,} "
+                f"({buy_trades/results.total_trades:.1%})\n"
+            )
+            summary += (
+                f"- **Sell Signals**: {sell_trades:,} "
+                f"({sell_trades/results.total_trades:.1%})\n\n"
+            )
+            summary += "## Average Metrics by Signal Type\n"
 
-## Average Metrics by Signal Type
-"""
-            buy_returns = [t.return_pct for t in results.trades if t.signal == 1]
-            sell_returns = [t.return_pct for t in results.trades if t.signal == -1]
+            buy_returns = [
+                t.return_pct for t in results.trades if t.signal == 1
+            ]
+            sell_returns = [
+                t.return_pct for t in results.trades if t.signal == -1
+            ]
 
             if buy_returns:
-                summary += f"- **Avg Buy Return**: {sum(buy_returns)/len(buy_returns):.2%}\n"
+                avg_buy = sum(buy_returns) / len(buy_returns)
+                summary += f"- **Avg Buy Return**: {avg_buy:.2%}\n"
             if sell_returns:
-                summary += f"- **Avg Sell Return**: {sum(sell_returns)/len(sell_returns):.2%}\n"
+                avg_sell = sum(sell_returns) / len(sell_returns)
+                summary += f"- **Avg Sell Return**: {avg_sell:.2%}\n"
 
         # Save summary
-        with open(output_path / "backtest_summary.md", "w", encoding="utf-8") as f:
+        with open(
+            output_path / "backtest_summary.md", "w", encoding="utf-8"
+        ) as f:
             f.write(summary)
 
         # Save metrics as JSON
@@ -146,7 +160,7 @@ class BacktestRunner:
                 "annualized_return": results.annualized_return,
                 "volatility": results.volatility,
                 "sharpe_ratio": results.sharpe_ratio,
-                "max_drawdown": results.max_drawdown
+                "max_drawdown": results.max_drawdown,
             },
             "trading": {
                 "total_trades": results.total_trades,
@@ -155,14 +169,14 @@ class BacktestRunner:
                 "win_rate": results.win_rate,
                 "avg_win": results.avg_win,
                 "avg_loss": results.avg_loss,
-                "profit_factor": results.profit_factor
+                "profit_factor": results.profit_factor,
             },
             "benchmark": {
                 "benchmark_return": results.benchmark_return,
                 "excess_return": results.excess_return,
                 "beta": results.beta,
-                "alpha": results.alpha
-            }
+                "alpha": results.alpha,
+            },
         }
 
         with open(output_path / "backtest_metrics.json", "w") as f:
@@ -175,13 +189,15 @@ class BacktestRunner:
             return
 
         plt.style.use('default')
-        fig = plt.figure(figsize=(16, 12))
+        plt.figure(figsize=(16, 12))
 
         # 1. Equity Curve
         plt.subplot(2, 3, 1)
         if not self.results.equity_curve.empty:
-            plt.plot(pd.to_datetime(self.results.equity_curve['date']), 
-                    self.results.equity_curve['equity'])
+            plt.plot(
+                pd.to_datetime(self.results.equity_curve['date']),
+                self.results.equity_curve['equity'],
+            )
             plt.title('Equity Curve')
             plt.xlabel('Date')
             plt.ylabel('Equity')
@@ -190,9 +206,13 @@ class BacktestRunner:
         # 2. Drawdown
         plt.subplot(2, 3, 2)
         if not self.results.drawdown_curve.empty:
-            plt.fill_between(pd.to_datetime(self.results.drawdown_curve['date']),
-                           self.results.drawdown_curve['drawdown'], 0, 
-                           color='red', alpha=0.3)
+            plt.fill_between(
+                pd.to_datetime(self.results.drawdown_curve['date']),
+                self.results.drawdown_curve['drawdown'],
+                0,
+                color='red',
+                alpha=0.3,
+            )
             plt.title('Drawdown')
             plt.xlabel('Date')
             plt.ylabel('Drawdown')
@@ -209,8 +229,12 @@ class BacktestRunner:
 
         # 4. Signal Performance
         plt.subplot(2, 3, 4)
-        buy_returns = [t.return_pct for t in self.results.trades if t.signal == 1]
-        sell_returns = [t.return_pct for t in self.results.trades if t.signal == -1]
+        buy_returns = [
+            t.return_pct for t in self.results.trades if t.signal == 1
+        ]
+        sell_returns = [
+            t.return_pct for t in self.results.trades if t.signal == -1
+        ]
 
         if buy_returns and sell_returns:
             plt.boxplot([buy_returns, sell_returns], labels=['Buy', 'Sell'])
@@ -223,8 +247,9 @@ class BacktestRunner:
         if self.results.equity_curve.shape[0] > 0:
             monthly_returns = self._calculate_monthly_returns()
             if not monthly_returns.empty:
-                sns.heatmap(monthly_returns, annot=True, fmt='.1%', 
-                           cmap='RdYlGn', center=0)
+                sns.heatmap(
+                    monthly_returns, annot=True, fmt='.1%', cmap='RdYlGn', center=0
+                )
                 plt.title('Monthly Returns')
 
         # 6. Win Rate by Confidence
@@ -232,10 +257,11 @@ class BacktestRunner:
         confidence_bins = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
         win_rates = []
 
-        for i in range(len(confidence_bins)-1):
-            low, high = confidence_bins[i], confidence_bins[i+1]
-            filtered_trades = [t for t in self.results.trades 
-                             if low <= t.confidence < high]
+        for i in range(len(confidence_bins) - 1):
+            low, high = confidence_bins[i], confidence_bins[i + 1]
+            filtered_trades = [
+                t for t in self.results.trades if low <= t.confidence < high
+            ]
             if filtered_trades:
                 wins = sum(1 for t in filtered_trades if t.return_pct > 0)
                 win_rate = wins / len(filtered_trades)
@@ -248,12 +274,19 @@ class BacktestRunner:
             plt.title('Win Rate by Confidence')
             plt.xlabel('Confidence Range')
             plt.ylabel('Win Rate')
-            plt.xticks(range(len(win_rates)), 
-                      [f"{confidence_bins[i]:.1f}-{confidence_bins[i+1]:.1f}" 
-                       for i in range(len(confidence_bins)-1)], rotation=45)
+            plt.xticks(
+                range(len(win_rates)),
+                [
+                    f"{confidence_bins[i]:.1f}-{confidence_bins[i+1]:.1f}"
+                    for i in range(len(confidence_bins) - 1)
+                ],
+                rotation=45,
+            )
 
         plt.tight_layout()
-        plt.savefig(output_path / "backtest_charts.png", dpi=300, bbox_inches='tight')
+        plt.savefig(
+            output_path / "backtest_charts.png", dpi=300, bbox_inches='tight'
+        )
         plt.close()
 
         logger.info("Charts saved successfully")
@@ -282,13 +315,19 @@ class BacktestRunner:
         if len(monthly_df) == 0:
             return pd.DataFrame()
 
-        pivot_table = monthly_df.pivot(index='Year', columns='Month', values='Return')
+        pivot_table = monthly_df.pivot(
+            index='Year', columns='Month', values='Return'
+        )
 
         # Rename columns to month names
-        month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-        pivot_table.columns = [month_names[int(col)-1] if col <= 12 else f'M{col}' 
-                              for col in pivot_table.columns]
+        month_names = [
+            'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+            'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+        ]
+        pivot_table.columns = [
+            month_names[int(col) - 1] if col <= 12 else f'M{col}'
+            for col in pivot_table.columns
+        ]
 
         return pivot_table
 
@@ -305,7 +344,9 @@ class BacktestRunner:
                 'exit_date': trade.exit_date,
                 'ticker': trade.ticker,
                 'signal': trade.signal,
-                'signal_name': {1: 'Buy', -1: 'Sell'}.get(trade.signal, 'Unknown'),
+                'signal_name': {1: 'Buy', -1: 'Sell'}.get(
+                    trade.signal, 'Unknown'
+                ),
                 'entry_price': trade.entry_price,
                 'exit_price': trade.exit_price,
                 'return_pct': trade.return_pct,
@@ -318,11 +359,15 @@ class BacktestRunner:
 
         # Save equity curve
         if not self.results.equity_curve.empty:
-            self.results.equity_curve.to_csv(output_path / "equity_curve.csv", index=False)
+            self.results.equity_curve.to_csv(
+                output_path / "equity_curve.csv", index=False
+            )
 
-        # Save drawdown curve  
+        # Save drawdown curve
         if not self.results.drawdown_curve.empty:
-            self.results.drawdown_curve.to_csv(output_path / "drawdown_curve.csv", index=False)
+            self.results.drawdown_curve.to_csv(
+                output_path / "drawdown_curve.csv", index=False
+            )
 
     def print_summary(self) -> None:
         """Print quick summary to console"""
@@ -330,9 +375,9 @@ class BacktestRunner:
             print("No backtest results available")
             return
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("📊 BACKTEST RESULTS SUMMARY")
-        print("="*60)
+        print("=" * 60)
         print(f"💰 Total Return: {self.results.total_return:.2%}")
         print(f"📈 Annualized Return: {self.results.annualized_return:.2%}")
         print(f"📉 Max Drawdown: {self.results.max_drawdown:.2%}")
@@ -342,13 +387,13 @@ class BacktestRunner:
         print(f"🏆 Profit Factor: {self.results.profit_factor:.2f}")
         print(f"📊 VN-Index Return: {self.results.benchmark_return:.2%}")
         print(f"💎 Excess Return: {self.results.excess_return:.2%}")
-        print("="*60)
+        print("=" * 60)
 
 
 def run_backtest_analysis(
     model_path: str = "models/xgboost_model.pkl",
-    scaler_path: str = "models/feature_scaler.pkl", 
-    test_data_path: str = "data/final/test_data.csv",
+    scaler_path: str = "models/feature_scaler.pkl",
+    test_data_path: str = "data/final/custom_test_data.csv",
     confidence_threshold: float = 0.6,
     output_dir: str = "results/backtest"
 ) -> BacktestResults:
