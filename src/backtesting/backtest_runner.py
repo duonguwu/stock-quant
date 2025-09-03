@@ -23,6 +23,8 @@ class BacktestRunner:
         """
         self.engine = create_backtest_engine(model_path, scaler_path)
         self.results = None
+        self.test_data = None
+        self.signals = None
 
     def run_backtest(
         self,
@@ -59,6 +61,14 @@ class BacktestRunner:
             benchmark_ticker=benchmark_ticker
         )
 
+        # Generate signals for visualization
+        self.test_data = test_data.copy()
+        self.signals = self.engine.generate_signals(self.test_data, confidence_threshold)
+
+        from collections import Counter
+        cnt = Counter([t.ticker for t in self.results.trades])
+        logger.info(f"Trades per ticker: {dict(cnt)}")
+        logger.info(f"Total trades (sum): {sum(cnt.values())}")
         return self.results
 
     def generate_report(self, output_dir: str = "results/backtest") -> None:
@@ -80,6 +90,9 @@ class BacktestRunner:
 
         # Generate visualizations
         self._generate_charts(output_path)
+
+        # Generate price charts with signals
+        self._generate_price_charts(output_path)
 
         # Save detailed data
         self._save_detailed_data(output_path)
@@ -291,6 +304,114 @@ class BacktestRunner:
 
         logger.info("Charts saved successfully")
 
+    def _generate_price_charts(self, output_path: Path) -> None:
+        """Generate price charts with signals for each ticker"""
+        if self.test_data is None or self.signals is None:
+            logger.warning("No test data or signals available for price charts")
+            return
+
+        # Create directory for price charts
+        price_charts_dir = output_path / "price_charts"
+        price_charts_dir.mkdir(exist_ok=True)
+
+        # Get unique tickers
+        tickers = self.test_data['ticker'].unique()
+
+        for ticker in tickers:
+            try:
+                self._plot_ticker_price_chart(ticker, price_charts_dir)
+            except Exception as e:
+                logger.warning(f"Failed to plot chart for {ticker}: {e}")
+
+        logger.info(f"Price charts saved to {price_charts_dir}")
+
+    def _plot_ticker_price_chart(self, ticker: str, output_dir: Path) -> None:
+        """Plot price chart with signals for a specific ticker"""
+        # Filter data for this ticker
+        ticker_data = self.test_data[self.test_data['ticker'] == ticker].copy()
+        ticker_signals = self.signals.loc[ticker_data.index].copy()
+
+        # Get trades for this ticker
+        ticker_trades = [t for t in self.results.trades if t.ticker == ticker]
+
+        # Create figure
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 10), height_ratios=[3, 1])
+        ax1.set_title(f'{ticker} - Executed Trades (n={len(ticker_trades)})', fontsize=14)
+
+        # Plot 1: Price and signals
+        dates = pd.to_datetime(ticker_data['timestamp'])
+        prices = ticker_data['close']
+
+        # Plot price line
+        ax1.plot(dates, prices, 'b-', linewidth=1, label='Close Price')
+
+        # Plot signals
+        buy_signals = ticker_signals[ticker_signals['signal'] == 1]
+        sell_signals = ticker_signals[ticker_signals['signal'] == -1]
+
+        if not buy_signals.empty:
+            buy_dates = pd.to_datetime(ticker_data.loc[buy_signals.index, 'timestamp'])
+            buy_prices = ticker_data.loc[buy_signals.index, 'close']
+            ax1.scatter(buy_dates, buy_prices, color='green', marker='^',
+                       s=100, label='Buy Signal', zorder=5)
+
+        if not sell_signals.empty:
+            sell_dates = pd.to_datetime(ticker_data.loc[sell_signals.index, 'timestamp'])
+            sell_prices = ticker_data.loc[sell_signals.index, 'close']
+            ax1.scatter(sell_dates, sell_prices, color='red', marker='v',
+                       s=100, label='Sell Signal', zorder=5)
+
+        # Plot entry/exit points from trades
+        for trade in ticker_trades:
+            entry_date = pd.to_datetime(trade.entry_date)
+            exit_date = pd.to_datetime(trade.exit_date)
+
+            # Find closest dates in data
+            entry_idx = ticker_data[ticker_data['timestamp'] == trade.entry_date].index
+            exit_idx = ticker_data[ticker_data['timestamp'] == trade.exit_date].index
+
+            if not entry_idx.empty and not exit_idx.empty:
+                entry_price = ticker_data.loc[entry_idx[0], 'close']
+                exit_price = ticker_data.loc[exit_idx[0], 'close']
+
+                # Plot entry point
+                ax1.scatter(entry_date, entry_price, color='darkgreen', 
+                           marker='o', s=150, label='Entry' if trade == ticker_trades[0] else "", 
+                           zorder=6, edgecolor='white', linewidth=2)
+
+                # Plot exit point
+                color = 'darkred' if trade.return_pct < 0 else 'darkgreen'
+                ax1.scatter(exit_date, exit_price, color=color, 
+                           marker='x', s=150, label='Exit' if trade == ticker_trades[0] else "", 
+                           zorder=6, linewidth=3)
+
+                # Draw line between entry and exit
+                ax1.plot([entry_date, exit_date], [entry_price, exit_price], 
+                        color=color, alpha=0.7, linewidth=2)
+
+        ax1.set_title(f'{ticker} - Price Chart with Signals and Trades', fontsize=14)
+        ax1.set_ylabel('Price (VND)')
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+
+        # Plot 2: Volume
+        if 'volume' in ticker_data.columns:
+            volumes = ticker_data['volume']
+            ax2.bar(dates, volumes, alpha=0.7, color='gray', width=1)
+            ax2.set_ylabel('Volume')
+            ax2.set_xlabel('Date')
+        else:
+            ax2.set_visible(False)
+
+        # Format x-axis
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+
+        # Save chart
+        chart_path = output_dir / f"{ticker}_price_chart.png"
+        plt.savefig(chart_path, dpi=300, bbox_inches='tight')
+        plt.close()
+
     def _calculate_monthly_returns(self) -> pd.DataFrame:
         """Calculate monthly returns for heatmap"""
         if self.results.equity_curve.empty:
@@ -363,7 +484,7 @@ class BacktestRunner:
                 output_path / "equity_curve.csv", index=False
             )
 
-        # Save drawdown curve
+        # Save drawdown curve  
         if not self.results.drawdown_curve.empty:
             self.results.drawdown_curve.to_csv(
                 output_path / "drawdown_curve.csv", index=False

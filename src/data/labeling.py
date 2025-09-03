@@ -248,7 +248,6 @@ def apply_triple_barrier_labeling(
     def apply_labeling_to_ticker(df):
         """Apply labeling to single ticker data"""
         ticker = df['ticker'].iloc[0] if 'ticker' in df.columns else 'unknown'
-        logger.info(f"🔍 Labeling ticker: {ticker}, len={len(df)}")
 
         if len(df) < N + vol_window:
             logger.warning(f"⏭️ Skipping {ticker}, insufficient data")
@@ -256,9 +255,7 @@ def apply_triple_barrier_labeling(
 
         # Try-catch toàn bộ để bắt lỗi rõ ràng
         try:
-            logger.info(f"📊 Computing volatility for {ticker}...")
             vol = rolling_volatility(df['close'], window=vol_window)
-            logger.info(f"🎯 Calling event_driven_labels for {ticker}, N={N}...")
 
             labels = event_driven_labels(
                 df=df,
@@ -273,7 +270,6 @@ def apply_triple_barrier_labeling(
                 tie_policy=tie_policy,
                 min_ret=min_ret
             )
-            logger.info(f"✅ Successfully labeled {ticker}")
             return df.join(labels)
         except Exception as e:
             logger.error(f"❌ Failed to label ticker {ticker}: {e}")

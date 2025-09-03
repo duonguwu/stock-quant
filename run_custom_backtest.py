@@ -44,12 +44,9 @@ if __name__ == "__main__":
     load_dotenv()
     username = os.getenv("FIIN_USERNAME")
     password = os.getenv("FIIN_PASSWORD")
-    tickers = [
-        'BID', 'MBB', 'ACB', 'HDB', 'STB', 'VIB', 'NAB', 'QNS', 'GEE', 'HAH',
-        'MSH', 'BFC', 'NTL', 'HBC', 'PDV',
-    ]
-    start_date = "2021-01-01"
-    end_date = "2021-12-31"
+    tickers = ['CTG', 'HDB', 'DRC', ' NT2', 'VPD']
+    start_date = "2023-01-01"
+    end_date = "2023-12-31"
 
     # Load config
     config = {}

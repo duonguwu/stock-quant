@@ -3,11 +3,12 @@ data:
   # Tickers to fetch
   universe: null  # VN30, VN100, or custom list, tui để null để tắt đi
   # custom_tickers: ['BID', 'MBB']
-  custom_tickers: ['BID', 'MBB', 'ACB', 'HDB', 'STB', 'VIB', 'NAB', 'QNS', 'GEE', 'HAH', 'MSH', 'BFC', 'NTL', 'HBC', 'PDV']
+  custom_tickers: ['IJC', 'TDC', 'PRE', 'VLC', 'FMC', 'CTG', 'TNG', 'CSV', 'TDM', 'SJD', 'HDB', 'DRC', 'NT2', 'VPD']
+
 
   # Time range
-  start_date: "2020-01-01"
-  end_date: "2024-12-31"  # null means current date
+  start_date: "2016-01-01"
+  end_date: "2021-12-31"  # null means current date
   
   # Data frequency
   timeframe: "1d"  # 1d, 1h, 15m, etc.

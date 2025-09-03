@@ -106,7 +106,6 @@ class FeatureEngineer:
         if 'volume' in df.columns:
             df['obv'] = self.fi.obv(df['close'], df['volume'])
 
-        logger.info(f"Added {len([col for col in df.columns if col not in data.columns])} technical indicators")
         return df
 
     def add_price_features(
@@ -160,7 +159,6 @@ class FeatureEngineer:
         # Gap features
         df['gap'] = (df['open'] - df['close'].shift(1)) / df['close'].shift(1)
 
-        logger.info(f"Added price-based features")
         return df
 
     def add_regime_features(
@@ -191,7 +189,6 @@ class FeatureEngineer:
         # Volatility regime
         if 'volatility_regime_window' in regime_config:
             window = regime_config['volatility_regime_window']
-            print(f"Volatility regime window: {window}")
             returns = df['close'].pct_change()
             rolling_vol = returns.rolling(window=window).std()
             vol_quantiles = rolling_vol.quantile([0.33, 0.67])
@@ -202,7 +199,6 @@ class FeatureEngineer:
                 labels=[0, 1, 2]  # 0: low vol, 1: medium vol, 2: high vol
             ).astype(float)
 
-        logger.info("Added market regime features")
         return df
 
     def add_momentum_features(self, data: pd.DataFrame) -> pd.DataFrame:
@@ -228,7 +224,6 @@ class FeatureEngineer:
         for window in [20, 50]:
             df[f'price_rank_{window}d'] = df['close'].rolling(window=window).rank(pct=True)
 
-        logger.info("Added momentum features")
         return df
 
     def engineer_features(
@@ -245,7 +240,6 @@ class FeatureEngineer:
         Returns:
             DataFrame with all features
         """
-        logger.info("Starting feature engineering...")
 
         def process_ticker_data(df):
             """Process features for single ticker"""
