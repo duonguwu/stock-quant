@@ -171,7 +171,7 @@ Chỉnh sửa các file trong thư mục `config/`:
 #### Luồng tạo feature
 ```mermaid
 flowchart TD
-    A[OHLCV Data: OHLCV + BU/SD] --> B[Feature Engineering (FiinQuantX)]
+    A[OHLCV Data: OHLCV + BU/SD] --> B[Feature Engineering - FiinQuantX]
 
     %% Trend
     B --> C[Trend Indicators]
