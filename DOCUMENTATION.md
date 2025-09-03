@@ -276,7 +276,7 @@ flowchart TD
     B --> G[Price-based<br/> Returns, Ratios, Gap]
     B --> H[Regime<br/> Trend, Volatility bins]
 
-    C & D & E & F & G & H --> Z[Final Feature Set\n~57-60 features]
+    C & D & E & F & G & H --> Z[Final Feature Set<br/> ~57-60 features]
 
 ```
 
