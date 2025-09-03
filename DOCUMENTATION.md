@@ -265,6 +265,21 @@ Entry tại thời điểm t với giá P_t:
 - **Volatility**: Bollinger Bands, ATR
 - **Volume**: MFI, OBV, VWAP
 
+```mermaid
+flowchart TD
+    A[OHLCV + BU/SD\n(FiinQuantX Data)] --> B[Feature Engineering Pipeline]
+
+    B --> C[Trend\nEMA, SMA, MACD, ADX]
+    B --> D[Momentum\nRSI, Stoch, ROC, CumReturn, Rank]
+    B --> E[Volatility\nBollinger, ATR, Rolling Vol]
+    B --> F[Volume\nMFI, VWAP, OBV, BU/SD Ratio]
+    B --> G[Price-based\nReturns, Ratios, Gap]
+    B --> H[Regime\nTrend, Volatility bins]
+
+    C & D & E & F & G & H --> Z[Final Feature Set\n~57-60 features]
+
+```
+
 ### Price Features
 - Returns (1, 5, 10, 20 ngày)
 - Rolling volatility
