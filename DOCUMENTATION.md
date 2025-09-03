@@ -168,6 +168,57 @@ Chỉnh sửa các file trong thư mục `config/`:
 4. **Data Cleaning**: Xử lý missing values, outliers
 5. **Data Splitting**: Chia train/val/test theo thời gian
 
+#### Luồng tạo feature
+```mermaid
+flowchart TD
+    A[OHLCV Data\n(Open, High, Low, Close, Volume, BU, SD)] --> B[Feature Engineering (FiinQuantX)]
+
+    %% Trend
+    B --> C[Trend Indicators]
+    C --> C1[EMA (5,10,20,50)]
+    C --> C2[SMA (10,20,50)]
+    C --> C3[MACD, MACD Signal, MACD Diff]
+    C --> C4[ADX]
+
+    %% Momentum
+    B --> D[Momentum Indicators]
+    D --> D1[RSI (14)]
+    D --> D2[Stochastic, Stoch Signal]
+    D --> D3[ROC (5,10,20)]
+    D --> D4[Cumulative Returns (5d,10d,20d)]
+    D --> D5[Price Rank (20d,50d)]
+
+    %% Volatility
+    B --> E[Volatility Indicators]
+    E --> E1[Bollinger Bands (upper, lower, width, position)]
+    E --> E2[ATR, ATR Ratio]
+    E --> E3[Rolling Volatility]
+    E --> E4[Volatility of Volatility]
+
+    %% Volume
+    B --> F[Volume Indicators]
+    F --> F1[MFI]
+    F --> F2[VWAP, VWAP Ratio]
+    F --> F3[OBV]
+    F --> F4[Volume SMA, Volume Ratio, Volume Z-score]
+    F --> F5[BU/SD Ratio, Net Active Volume, Active Volume Ratio]
+
+    %% Price-based
+    B --> G[Price-based Features]
+    G --> G1[Returns (1d,5d,10d,20d)]
+    G --> G2[High-Low Ratio]
+    G --> G3[Close-Open Ratio]
+    G --> G4[Gap]
+
+    %% Regime
+    B --> H[Market Regime Features]
+    H --> H1[Trend Regime (SMA trend window)]
+    H --> H2[Volatility Regime (Low/Med/High vol bins)]
+
+    %% Final output
+    C & D & E & F & G & H --> Z[Final Feature Set\n~57-60 features]
+```
+
 ### Phase 2: Training Pipeline
 
 1. **Data Preparation**: Scaling, encoding
