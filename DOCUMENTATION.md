@@ -267,14 +267,14 @@ Entry tại thời điểm t với giá P_t:
 
 ```mermaid
 flowchart TD
-    A[OHLCV + BU/SD\n(FiinQuantX Data)] --> B[Feature Engineering Pipeline]
+    A[OHLCV + BU/SD - FiinQuantX Data] --> B[Feature Engineering Pipeline]
 
-    B --> C[Trend\nEMA, SMA, MACD, ADX]
-    B --> D[Momentum\nRSI, Stoch, ROC, CumReturn, Rank]
-    B --> E[Volatility\nBollinger, ATR, Rolling Vol]
-    B --> F[Volume\nMFI, VWAP, OBV, BU/SD Ratio]
-    B --> G[Price-based\nReturns, Ratios, Gap]
-    B --> H[Regime\nTrend, Volatility bins]
+    B --> C[TrendEMA, SMA, MACD, ADX]
+    B --> D[Momentum <br/>  RSI, Stoch, ROC, CumReturn, Rank]
+    B --> E[Volatility <br/>  Bollinger, ATR, Rolling Vol]
+    B --> F[Volume <br/> MFI, VWAP, OBV, BU/SD Ratio]
+    B --> G[Price-based<br/> Returns, Ratios, Gap]
+    B --> H[Regime<br/> Trend, Volatility bins]
 
     C & D & E & F & G & H --> Z[Final Feature Set\n~57-60 features]
 
