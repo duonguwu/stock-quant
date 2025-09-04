@@ -73,21 +73,7 @@ stock-quant/
 ```
 
 ## 🔄 Workflow tổng thể
-
-### Phase 1: Stock Screening
-```mermaid
-flowchart TD
-    A[Historical Data 2020-2024] --> B[Fundamental Screening]
-    B --> C[Market Cap > 1B VND]
-    C --> D[EPS Growth > 0]
-    D --> E[PE < Sector Average]
-    E --> F[PB 1-2, ROE > 15%]
-    F --> G[Volume > 100k]
-    G --> H[Top 5 Stocks/Year]
-    H --> I[Growth vs Defensive Classification]
-```
-
-### Phase 2: ML-based Trading
+### ML-based Trading
 ```mermaid
 flowchart TD
     A[Screened Stocks] --> B[Data Fetching - FiinQuantX]
@@ -99,7 +85,7 @@ flowchart TD
     G --> H[Backtesting]
 ```
 
-### Phase 3: Rule-based Trading
+### Rule-based Trading
 ```mermaid
 flowchart TD
     A[Screened Stocks] --> B[VSA/Wyckoff Pattern Detection]
@@ -110,22 +96,6 @@ flowchart TD
     F --> G[Performance vs VNINDEX]
 ```
 
-## 📈 Kết quả đạt được
-
-### Stock Screening (2020-2024)
-- **2020**: 21 cổ phiếu đạt tiêu chí
-- **2021**: 22 cổ phiếu (Growth: IJC, TDC, PRE | Defensive: VLC, FMC)
-- **2022**: 16 cổ phiếu (Growth: CTG, TNG, CSV | Defensive: TDM, SJD)
-- **2023**: 13 cổ phiếu (Growth: CTG, HDB, DRC | Defensive: NT2, VPD)
-- **2024**: 11 cổ phiếu (Growth: CTG, MBB, ACB | Defensive: QNS, MSH)
-
-### Rule-based Backtest (2023)
-- **Portfolio Return**: 15.57%
-- **VNINDEX Return**: 8.24%
-- **Outperformance**: +7.33%
-- **Max Drawdown**: 5.62%
-- **Win Rate**: 60.78%
-
 ## 🛠️ Tài liệu tham khảo
 
 - **[SETUP.md](SETUP.md)**: Hướng dẫn setup nhanh cho người mới
@@ -134,19 +104,6 @@ flowchart TD
 - **[Q&A.md](Q&A.md)**: Hỏi đáp chi tiết về hệ thống và troubleshooting
 - **[BACKTEST_GUIDE.md](BACKTEST_GUIDE.md)**: Hướng dẫn backtesting và đánh giá hiệu suất
 - **[planning.md](planning.md)**: Kế hoạch phát triển và technical approach
-
-## 🎯 Performance Targets
-
-### ML System
-- **Accuracy**: >45% (random = 33% cho 3 classes)
-- **Macro F1**: >0.4
-- **Feature count**: 30-50 features
-
-### Rule-based System  
-- **Annual Return**: 15-25%
-- **Sharpe Ratio**: >1.0
-- **Max Drawdown**: <10%
-- **Win Rate**: >55%
 
 ## 🔧 Cấu hình nâng cao
 
@@ -162,9 +119,3 @@ Chỉnh sửa trong notebooks:
 - Portfolio optimization constraints
 - Risk management rules
 
-## 📊 Monitoring & Evaluation
-
-- **Real-time**: Model performance tracking
-- **Backtesting**: Historical validation
-- **Risk Metrics**: Drawdown, Sharpe, Sortino
-- **Benchmark**: VNINDEX comparison
