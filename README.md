@@ -15,14 +15,14 @@ Hệ thống phân loại tín hiệu giao dịch chứng khoán với **2 appro
 
 ## 🎯 2 kỹ thuật giao dịch
 
-### 1. **ML-based Trading System** 
+### 1. **ML-based Trading System** (folder /src)
 - **Event-driven Labeling**: Triple-barrier method với volatility scaling
 - **Technical Indicators**: 30+ chỉ báo từ FiinQuantX (EMA, RSI, MACD, ATR, etc.)
 - **XGBoost Model**: Với hyperparameter optimization và time-series CV
 - **Automated Pipeline**: Từ raw data đến trained model
 - **Comprehensive Backtesting**: Đánh giá hiệu suất với VN-Index benchmark
 
-### 2. **Rule-based TA System** 
+### 2. **Rule-based TA System** (folder /notebook)
 - **VSA/Wyckoff Patterns**: Volume Spread Analysis với 8 pattern chính
 - **Portfolio Optimization**: Quadratic programming với ràng buộc risk-return
 - **Multi-timeframe Analysis**: Tín hiệu từ daily data với T+2 constraints
