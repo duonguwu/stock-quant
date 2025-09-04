@@ -13,26 +13,20 @@
 
 Hệ thống phân loại tín hiệu giao dịch chứng khoán với **2 approach chính**:
 
-## 🎯 Tính năng chính
+## 🎯 2 kỹ thuật giao dịch
 
-### 1. **ML-based Trading System** (Primary)
+### 1. **ML-based Trading System** (folder /src)
 - **Event-driven Labeling**: Triple-barrier method với volatility scaling
 - **Technical Indicators**: 30+ chỉ báo từ FiinQuantX (EMA, RSI, MACD, ATR, etc.)
 - **XGBoost Model**: Với hyperparameter optimization và time-series CV
 - **Automated Pipeline**: Từ raw data đến trained model
 - **Comprehensive Backtesting**: Đánh giá hiệu suất với VN-Index benchmark
 
-### 2. **Rule-based TA System** (Alternative)
+### 2. **Rule-based TA System** (folder /notebook)
 - **VSA/Wyckoff Patterns**: Volume Spread Analysis với 8 pattern chính
 - **Portfolio Optimization**: Quadratic programming với ràng buộc risk-return
 - **Multi-timeframe Analysis**: Tín hiệu từ daily data với T+2 constraints
 - **Dynamic Rebalancing**: Tối ưu trọng số danh mục theo market regime
-
-### 3. **Stock Screening System** (Supporting)
-- **Fundamental Filtering**: Market cap, EPS growth, PE/PB ratios
-- **Sector Analysis**: PE comparison theo ngành ICB
-- **Growth vs Defensive**: Phân loại cổ phiếu theo investment style
-- **Multi-year Screening**: Lọc cổ phiếu cho 2020-2024
 
 ## 🚀 Khởi chạy nhanh
 
@@ -79,21 +73,7 @@ stock-quant/
 ```
 
 ## 🔄 Workflow tổng thể
-
-### Phase 1: Stock Screening
-```mermaid
-flowchart TD
-    A[Historical Data 2020-2024] --> B[Fundamental Screening]
-    B --> C[Market Cap > 1B VND]
-    C --> D[EPS Growth > 0]
-    D --> E[PE < Sector Average]
-    E --> F[PB 1-2, ROE > 15%]
-    F --> G[Volume > 100k]
-    G --> H[Top 5 Stocks/Year]
-    H --> I[Growth vs Defensive Classification]
-```
-
-### Phase 2: ML-based Trading
+### ML-based Trading
 ```mermaid
 flowchart TD
     A[Screened Stocks] --> B[Data Fetching - FiinQuantX]
@@ -105,7 +85,7 @@ flowchart TD
     G --> H[Backtesting]
 ```
 
-### Phase 3: Rule-based Trading
+### Rule-based Trading
 ```mermaid
 flowchart TD
     A[Screened Stocks] --> B[VSA/Wyckoff Pattern Detection]
@@ -116,43 +96,12 @@ flowchart TD
     F --> G[Performance vs VNINDEX]
 ```
 
-## 📈 Kết quả đạt được
-
-### Stock Screening (2020-2024)
-- **2020**: 21 cổ phiếu đạt tiêu chí
-- **2021**: 22 cổ phiếu (Growth: IJC, TDC, PRE | Defensive: VLC, FMC)
-- **2022**: 16 cổ phiếu (Growth: CTG, TNG, CSV | Defensive: TDM, SJD)
-- **2023**: 13 cổ phiếu (Growth: CTG, HDB, DRC | Defensive: NT2, VPD)
-- **2024**: 11 cổ phiếu (Growth: CTG, MBB, ACB | Defensive: QNS, MSH)
-
-### Rule-based Backtest (2023)
-- **Portfolio Return**: 15.57%
-- **VNINDEX Return**: 8.24%
-- **Outperformance**: +7.33%
-- **Max Drawdown**: 5.62%
-- **Win Rate**: 60.78%
-
 ## 🛠️ Tài liệu tham khảo
 
 - **[SETUP.md](SETUP.md)**: Hướng dẫn setup nhanh cho người mới
 - **[DOCUMENTATION.md](DOCUMENTATION.md)**: Chi tiết kỹ thuật ML pipeline
-- **[TRADING_SYSTEMS.md](TRADING_SYSTEMS.md)**: So sánh ML vs Rule-based approaches
 - **[Q&A.md](Q&A.md)**: Hỏi đáp chi tiết về hệ thống và troubleshooting
 - **[BACKTEST_GUIDE.md](BACKTEST_GUIDE.md)**: Hướng dẫn backtesting và đánh giá hiệu suất
-- **[planning.md](planning.md)**: Kế hoạch phát triển và technical approach
-
-## 🎯 Performance Targets
-
-### ML System
-- **Accuracy**: >45% (random = 33% cho 3 classes)
-- **Macro F1**: >0.4
-- **Feature count**: 30-50 features
-
-### Rule-based System  
-- **Annual Return**: 15-25%
-- **Sharpe Ratio**: >1.0
-- **Max Drawdown**: <10%
-- **Win Rate**: >55%
 
 ## 🔧 Cấu hình nâng cao
 
@@ -168,9 +117,3 @@ Chỉnh sửa trong notebooks:
 - Portfolio optimization constraints
 - Risk management rules
 
-## 📊 Monitoring & Evaluation
-
-- **Real-time**: Model performance tracking
-- **Backtesting**: Historical validation
-- **Risk Metrics**: Drawdown, Sharpe, Sortino
-- **Benchmark**: VNINDEX comparison
