@@ -509,6 +509,14 @@ class BacktestRunner:
         print(f"📊 VN-Index Return: {self.results.benchmark_return:.2%}")
         print(f"💎 Excess Return: {self.results.excess_return:.2%}")
         print("=" * 60)
+        print("\n" + "=" * 40)
+        print("PORTFOLIO BACKTEST RESULTS")
+        print("=" * 40)
+        print(f"Portfolio Return [%]: {self.results.total_return:.2%}")
+        print(f"Portfolio Max Drawdown [%]: {self.results.max_drawdown:.2%}")
+        print(f"Total Trades: {self.results.total_trades}")
+        print(f"Win Rate [%] (est.): {self.results.win_rate:.2%}")
+        print("=" * 40)
 
 
 def run_backtest_analysis(

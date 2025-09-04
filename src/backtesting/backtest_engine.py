@@ -393,6 +393,13 @@ class BacktestEngine:
         benchmark_df: Optional[pd.DataFrame] = None
         benchmark_df = get_benchmark_returns_from_fiin(start_date, end_date)
 
+        print("Benchmark fetch period:", start_date, "to", end_date)
+        print("benchmark_df.shape:", benchmark_df.shape)
+        if not benchmark_df.empty:
+            print("benchmark_df.index:", benchmark_df.index[0], "to", benchmark_df.index[-1])
+            print("benchmark_df['close'] head:", benchmark_df['close'].head(3))
+            print("benchmark_df['close'] tail:", benchmark_df['close'].tail(3))
+
         benchmark_return, beta, alpha = self._calculate_benchmark_metrics(
             strategy_returns, start_date, end_date, benchmark_df
         )
@@ -434,17 +441,29 @@ class BacktestEngine:
         """Calculate benchmark comparison metrics using provided benchmark returns."""
         if benchmark_returns is None or benchmark_returns.empty:
             return 0.0, 0.0, 0.0
+        print("benchmark_returns index head:", benchmark_returns.index[:3])
+        print("benchmark_returns index tail:", benchmark_returns.index[-3:])
 
         # Lấy return, loại bỏ NaN
         benchmark_r = benchmark_returns['return'].dropna().values
+        print("Length of benchmark_r (after dropna):", len(benchmark_r))
+        print("First 5 benchmark returns:", benchmark_returns['return'].head(5).values)
+        print("Last 5 benchmark returns:", benchmark_returns['return'].tail(5).values)
 
+        print("Length of strategy_returns:", len(strategy_returns))
+        print("First 5 strategy returns:", strategy_returns[:5])
+        print("Last 5 strategy returns:", strategy_returns[-5:])
         # Align lengths
         min_len = min(len(strategy_returns), len(benchmark_r))
+        print("min_len for align:", min_len)
+
         strategy_aligned = strategy_returns[:min_len]
         benchmark_aligned = benchmark_r[:min_len]
 
         # Tổng return benchmark
-        benchmark_total_return = (1 + benchmark_aligned).prod() - 1
+        benchmark_total_return = (1 + benchmark_r).prod() - 1
+        print("Benchmark total return (calculated):", benchmark_total_return)
+
 
         # Tính beta và alpha
         if len(strategy_aligned) > 1 and len(benchmark_aligned) > 1:
@@ -549,7 +568,7 @@ class BacktestEngine:
         # Calculate performance metrics
         start_date = test_data['timestamp'].min()
         end_date = test_data['timestamp'].max()
-
+        print("Backtest period: ", start_date, " and ", end_date)
         results = self.calculate_performance_metrics(
             trades, start_date, end_date, benchmark_ticker
         )

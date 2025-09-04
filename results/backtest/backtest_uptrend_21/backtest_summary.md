@@ -18,8 +18,8 @@
 - **Profit Factor**: 1.36
 
 ## Benchmark Comparison (VN-Index)
-- **Benchmark Return**: 16.34%
-- **Excess Return**: 29.94%
+- **Benchmark Return**: 33.72%
+- **Excess Return**: 12.57%
 - **Beta**: 0.529
 - **Alpha**: 0.0043
 

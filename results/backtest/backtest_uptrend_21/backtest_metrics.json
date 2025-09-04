@@ -16,8 +16,8 @@
     "profit_factor": 1.3573236581987944
   },
   "benchmark": {
-    "benchmark_return": 0.1634135675207704,
-    "excess_return": 0.29944805376794514,
+    "benchmark_return": 0.33718885824698375,
+    "excess_return": 0.1256727630417318,
     "beta": 0.5285396184353396,
     "alpha": 0.004275404094048596
   }
