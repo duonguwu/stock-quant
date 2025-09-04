@@ -56,6 +56,7 @@ class BacktestResults:
     trades: List[Trade]
     equity_curve: pd.DataFrame
     drawdown_curve: pd.DataFrame
+    benchmark_df: Optional[pd.DataFrame] = None
 
 
 def get_benchmark_returns_from_fiin(start_date: str, end_date: str) -> pd.DataFrame:
@@ -429,6 +430,7 @@ class BacktestEngine:
             trades=trades,
             equity_curve=equity_curve,
             drawdown_curve=drawdown_curve,
+            benchmark_df=benchmark_df
         )
 
     def _calculate_benchmark_metrics(

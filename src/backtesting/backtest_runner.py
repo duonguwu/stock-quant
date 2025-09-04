@@ -2,6 +2,7 @@
 
 import pandas as pd
 import matplotlib.pyplot as plt
+import numpy as np
 import seaborn as sns
 from pathlib import Path
 import json
@@ -301,8 +302,56 @@ class BacktestRunner:
             output_path / "backtest_charts.png", dpi=300, bbox_inches='tight'
         )
         plt.close()
-
+        self._plot_portfolio_vs_benchmark_chart(output_path)
         logger.info("Charts saved successfully")
+
+    def _plot_portfolio_vs_benchmark_chart(self, output_path: Path) -> None:
+        """Plot Portfolio vs VNINDEX annualized performance chart"""
+        if self.results is None or self.results.equity_curve.empty:
+            logger.warning("No equity curve available")
+            return
+
+        eq_curve = self.results.equity_curve.copy()
+        eq_curve['date'] = pd.to_datetime(eq_curve['date'])
+        eq_curve = eq_curve.set_index('date')
+
+        # Portfolio annualized return theo từng thời điểm
+        # Portfolio annualized return
+        days = (eq_curve.index - eq_curve.index[0]).days
+        days = np.where(days == 0, 1, days)
+        portfolio_cagr = (eq_curve['equity'] / eq_curve['equity'].iloc[0]) ** (365 / days) - 1
+        portfolio_cagr = portfolio_cagr * 100
+
+
+        # Benchmark annualized return (nếu có)
+        if hasattr(self.results, "benchmark_df") and self.results.benchmark_df is not None:
+            idx = self.results.benchmark_df.copy()
+            idx.index = pd.to_datetime(idx.index)
+            idx_perf = (idx['close'] / idx['close'].iloc[0] - 1.0) * 100
+
+            # Align ngày chung
+            common_idx = portfolio_cagr.index.intersection(idx_perf.index)
+            portfolio_cagr = portfolio_cagr.loc[common_idx]
+            idx_perf = idx_perf.loc[common_idx]
+        else:
+            idx_perf = None
+
+        # Plot
+        plt.figure(figsize=(12, 6))
+        plt.plot(portfolio_cagr.index, portfolio_cagr, label="Portfolio", linewidth=2)
+        if idx_perf is not None:
+            plt.plot(idx_perf.index, idx_perf, label="VNINDEX", linewidth=2, color="orange")
+
+        plt.title("Portfolio vs VNINDEX Annualized Performance")
+        plt.ylabel("Annualized Return (%)")
+        plt.xlabel("Date")
+        plt.legend()
+        plt.grid(True, linestyle="--", alpha=0.4)
+        plt.tight_layout()
+
+        # Save ảnh riêng
+        plt.savefig(output_path / "portfolio_vs_vnindex_annualized.png", dpi=300, bbox_inches="tight")
+        plt.close()
 
     def _generate_price_charts(self, output_path: Path) -> None:
         """Generate price charts with signals for each ticker"""
@@ -512,10 +561,16 @@ class BacktestRunner:
         print("\n" + "=" * 40)
         print("PORTFOLIO BACKTEST RESULTS")
         print("=" * 40)
-        print(f"Portfolio Return [%]: {self.results.total_return:.2%}")
-        print(f"Portfolio Max Drawdown [%]: {self.results.max_drawdown:.2%}")
+        print(f"Portfolio Return [%]: {self.results.annualized_return:.2%}")
+        print(f"Portfolio Max Drawdown [%]: {abs(self.results.max_drawdown):.2%}")
         print(f"Total Trades: {self.results.total_trades}")
         print(f"Win Rate [%] (est.): {self.results.win_rate:.2%}")
+        print("=" * 40)
+        print("PORTFOLIO BACKTEST RESULTS")
+        print("=" * 40)
+        print(f"Hiệu suất danh mục: {self.results.annualized_return:.2%}")
+        print(f"Hiệu suất VNINDEX: {self.results.benchmark_return:.2%}")
+        print(f"Outperformance: {(self.results.excess_return):.2%}")
         print("=" * 40)
 
 
