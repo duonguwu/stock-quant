@@ -100,10 +100,8 @@ flowchart TD
 
 - **[SETUP.md](SETUP.md)**: Hướng dẫn setup nhanh cho người mới
 - **[DOCUMENTATION.md](DOCUMENTATION.md)**: Chi tiết kỹ thuật ML pipeline
-- **[TRADING_SYSTEMS.md](TRADING_SYSTEMS.md)**: So sánh ML vs Rule-based approaches
 - **[Q&A.md](Q&A.md)**: Hỏi đáp chi tiết về hệ thống và troubleshooting
 - **[BACKTEST_GUIDE.md](BACKTEST_GUIDE.md)**: Hướng dẫn backtesting và đánh giá hiệu suất
-- **[planning.md](planning.md)**: Kế hoạch phát triển và technical approach
 
 ## 🔧 Cấu hình nâng cao
 
