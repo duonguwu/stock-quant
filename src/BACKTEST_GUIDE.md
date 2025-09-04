@@ -468,7 +468,7 @@ Hệ thống ML-based trading đã chứng minh khả năng:
 ## Minh họa Kết quả Backtest - Price Charts
 
 ### 1. SJD - Downtrend Market 2022
-![SJD Price Chart](results/backtest/backtest_downtrend_22/price_charts/SJD_price_chart.png)
+![SJD Price Chart](../results/backtest/backtest_downtrend_22/price_charts/SJD_price_chart.png)
 
 **Phân tích SJD (2022):**
 - **Entry Point**: Mid-November 2022 tại mức giá thấp nhất (~10,500 VND)
@@ -478,7 +478,7 @@ Hệ thống ML-based trading đã chứng minh khả năng:
 - **Strategy**: Model đã bắt được đáy và thoát lệnh đúng thời điểm
 
 ### 2. HDB - Sideway Market 2023
-![HDB Price Chart](results/backtest/backtest_sideway_23/price_charts/HDB_price_chart.png)
+![HDB Price Chart](../results/backtest/backtest_sideway_23/price_charts/HDB_price_chart.png)
 
 **Phân tích HDB (2023):**
 - **Trading Activity**: Nhiều signals và trades trong suốt năm 2023
@@ -488,7 +488,7 @@ Hệ thống ML-based trading đã chứng minh khả năng:
 - **Strategy**: Model capture được multiple trends và momentum shifts
 
 ### 3. PRE - Uptrend Market 2021
-![PRE Price Chart](results/backtest/backtest_uptrend_21/price_charts/PRE_price_chart.png)
+![PRE Price Chart](../results/backtest/backtest_uptrend_21/price_charts/PRE_price_chart.png)
 
 **Phân tích PRE (2021):**
 - **Early 2021**: Volatile period với nhiều signals trong range 10,500-13,000 VND
