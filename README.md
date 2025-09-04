@@ -1,4 +1,4 @@
-# Stock Signal Classification System
+# Data Science Talent Competition 
 
 **Đội thi DataStorm**
 
@@ -98,10 +98,11 @@ flowchart TD
 
 ## 🛠️ Tài liệu tham khảo
 
-- **[SETUP.md](SETUP.md)**: Hướng dẫn setup nhanh cho người mới
-- **[DOCUMENTATION.md](DOCUMENTATION.md)**: Chi tiết kỹ thuật ML pipeline
-- **[Q&A.md](Q&A.md)**: Hỏi đáp chi tiết về hệ thống và troubleshooting
-- **[BACKTEST_GUIDE.md](BACKTEST_GUIDE.md)**: Hướng dẫn backtesting và đánh giá hiệu suất
+- **[SETUP.md](src/SETUP.md)**: Hướng dẫn setup nhanh
+- **[DOCUMENTATION.md](src/DOCUMENTATION.md)**: Chi tiết kỹ thuật ML pipeline
+- **[README.md](notebooks/README.md)**: Chi tiết kỹ thuật TA-Rule Base
+- **[Q&A.md](src/Q&A.md)**: Hỏi đáp chi tiết về hệ thống và troubleshooting
+- **[BACKTEST_GUIDE.md](src/BACKTEST_GUIDE.md)**: Hướng dẫn backtesting và đánh giá hiệu suất
 
 ## 🔧 Cấu hình nâng cao
 
