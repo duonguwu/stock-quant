@@ -44,7 +44,7 @@ python main.py
 # Chạy backtesting (sau khi train model)
 python backtest.py
 
-# Chạy custom backtest với rule-based
+# Chạy custom để tạo data backtest
 python run_custom_backtest.py
 ```
 
