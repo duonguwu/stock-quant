@@ -1,0 +1,49 @@
+# Triple-Barrier Labeling Configuration for 15-minute timeframe
+labeling:
+  # IMPORTANT: 'days' ở đây được hiểu là SỐ BAR (15m), không phải ngày lịch
+  vertical_barrier:
+    days: 36   # ≈ 2 ngày giao dịch (18 bar/ngày * 2). Điều chỉnh theo ý đồ giữ lệnh.
+
+  # Take Profit / Stop Loss (volatility-scaled phù hợp intraday)
+  barriers:
+    tp_pct: null
+    sl_pct: null
+    tp_k: 1.5
+    sl_k: 1.0
+
+  # Volatility cho LABELING (dài hơn một chút để bớt nhiễu)
+  volatility:
+    window: 96        # ≈ 24 giờ
+    method: "std"
+    is_percentage: true
+
+  # Tie handling + HL check
+  tie_policy: "ambiguous"  # có thể thử "closest" khi backtest
+  min_ret: 0.003           # 0.3% cho intraday; giảm từ 0.5% để bớt Hold
+  use_hl: true
+
+# Label encoding
+labels:
+  class_names:
+    -1: "Sell"
+    0: "Hold"
+    1: "Buy"
+
+  # Kỳ vọng để so sánh (không ép)
+  expected_distribution:
+    sell: 0.30
+    hold: 0.40
+    buy: 0.30
+
+# Grid search for optimal labeling params (đơn vị = BAR 15m)
+optimization:
+  param_grid:
+    # N là vertical barrier tính theo BAR:
+    # 18 ≈ 1 ngày; 36 ≈ 2 ngày; 54 ≈ 3 ngày; 72 ≈ 4 ngày
+    N: [18, 36, 54, 72]
+    tp_k: [1.0, 1.5, 2.0]
+    sl_k: [0.5, 1.0, 1.5]
+    vol_window: [48, 96, 144]   # 12h, 24h, 36h
+
+  metric: "sharpe_ratio"
+  cv_folds: 3

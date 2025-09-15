@@ -1,0 +1,78 @@
+# Data Configuration for 15-minute timeframe (INTRADAY)
+data:
+  # Tickers (giảm tải để chạy nhanh)
+  universe: null
+  custom_tickers: ['IJC', 'TDC', 'PRE', 'VLC', 'FMC', 'CTG', 'TNG', 'CSV', 'TDM', 'SJD', 'HDB', 'DRC', 'NT2', 'VPD']
+
+  # Time range (FiinQuant 15m chỉ cho ~92 ngày gần hiện tại)
+  start_date: "2025-03-12"   # = today - 92 days (cập nhật theo ngày bạn chạy)
+  end_date: "2025-09-05"              # lấy tới hiện tại
+
+  # Data frequency
+  timeframe: "15m"
+
+  # Fields (kiểm tra BU/SD có sẵn ở intraday feed; nếu thiếu sẽ phải loại bớt feature tương ứng)
+  fields:
+    - "open"
+    - "high"
+    - "low"
+    - "close"
+    - "volume"
+    - "bu"
+    - "sd"
+
+  # Data processing
+  adjusted: true
+  fill_method: "ffill"
+  volume_fill: 0
+
+# Feature Engineering - scaled cho 15m
+features:
+  technical_indicators:
+    # Trend (xấp xỉ quy đổi theo giờ)
+    ema_periods: [20, 40, 80, 200]
+    sma_periods: [40, 80, 200]
+
+    # MACD (intraday phiên bản "vừa phải"; có thể thử profile dài hơn khi backtest)
+    macd:
+      fast: 48
+      slow: 104
+      signal: 36
+
+    adx_period: 56
+
+    # Momentum
+    rsi_period: 56
+    stoch_period: 56
+
+    # Volatility
+    bollinger:
+      period: 80
+      std_dev: 2
+    atr_period: 56
+
+    # Volume
+    mfi_period: 56
+    vwap_period: 56
+
+  # Price-based
+  price_features:
+    # 1H, 5H, 10H, 20H, ~2.5D, ~5D (15m bars)
+    returns_periods: [4, 20, 40, 80, 240, 480]
+    volatility_window: 80
+    volume_ratio_window: 80
+
+  # Regime (giữ bối cảnh nhiều ngày/tuần nhưng không quá dài)
+  regime_features:
+    trend_window: 400              # ~100 giờ ≈ 2.5 tuần giao dịch
+    volatility_regime_window: 504  # ~126 giờ ≈ 3 tuần
+
+# Data splits
+splits:
+  train_ratio: 0.6
+  validation_ratio: 0.2
+  test_ratio: 0.2
+
+  # Với intraday, tăng min_train_samples để fold đủ dày
+  min_train_samples: 6000
+  expanding_window: true

@@ -1,0 +1,79 @@
+# Data Configuration for 15-minute timeframe
+data:
+  # Tickers to fetch - reduced list for performance
+  universe: null  # Tắt universe để dùng custom list
+  custom_tickers: ['VCB', 'HPG', 'VIC', 'VNM', 'TCB']  # Top 5 liquid stocks only
+
+  # Time range - Thu hẹp để tránh memory issues
+  start_date: "2023-01-01"  # 2 năm data thay vì 6 năm (2016)
+  end_date: "2024-12-31"    # Current or specific end date
+  
+  # Data frequency - KEY CHANGE
+  timeframe: "15m"  # Changed from "1d" to "15m"
+  
+  # Fields to fetch from FiinQuantX
+  fields:
+    - "open"
+    - "high" 
+    - "low"
+    - "close"
+    - "volume"
+    - "bu"      # Buy volume (active buying)
+    - "sd"      # Sell volume (active selling)
+  
+  # Data processing
+  adjusted: true
+  fill_method: "ffill"  # forward fill for prices
+  volume_fill: 0        # fill volume with 0
+
+# Feature Engineering - Scaled for 15M timeframe
+features:
+  # Technical Indicators - Scaled by 4x factor (4 bars 15M = 1 hour)
+  technical_indicators:
+    # Trend indicators - 4x scaling
+    ema_periods: [20, 40, 80, 200]      # From [5,10,20,50] - 4x scale
+    sma_periods: [40, 80, 200]          # From [10,20,50] - 4x scale
+    
+    # MACD - 4x scaling
+    macd:
+      fast: 48      # 12 * 4 (12 hours vs 12 days)
+      slow: 104     # 26 * 4 (26 hours vs 26 days)  
+      signal: 36    # 9 * 4 (9 hours vs 9 days)
+      
+    adx_period: 56  # 14 * 4 (14 hours vs 14 days)
+    
+    # Momentum indicators - 4x scaling  
+    rsi_period: 56      # 14 * 4
+    stoch_period: 56    # 14 * 4
+    
+    # Volatility indicators - 4x scaling
+    bollinger:
+      period: 80        # 20 * 4 (20 hours vs 20 days)
+      std_dev: 2
+    atr_period: 56      # 14 * 4
+    
+    # Volume indicators - 4x scaling
+    mfi_period: 56      # 14 * 4  
+    vwap_period: 56     # 14 * 4
+  
+  # Price-based features - Adjusted for 15M
+  price_features:
+    # Returns periods mapping to meaningful timeframes
+    returns_periods: [4, 20, 40, 80, 240, 480]  # 1H, 5H, 10H, 20H, 2.5D, 5D
+    volatility_window: 80       # 20 * 4 (20 hours)
+    volume_ratio_window: 80     # 20 * 4 (20 hours)
+  
+  # Market regime features - Scaled appropriately
+  regime_features:
+    trend_window: 400           # 100 * 4 (100 hours ≈ 2.5 weeks)
+    volatility_regime_window: 504  # 126 * 4 (126 hours ≈ 3 weeks)
+
+# Data splits - Adjusted for larger dataset
+splits:
+  train_ratio: 0.6
+  validation_ratio: 0.2  
+  test_ratio: 0.2
+  
+  # Time-based split (walk-forward) - Increased min samples
+  min_train_samples: 2000   # Increased from 500 (more data available)
+  expanding_window: true 

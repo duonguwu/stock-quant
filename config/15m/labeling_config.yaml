@@ -1,0 +1,59 @@
+# Triple-Barrier Labeling Configuration for 15-minute timeframe
+labeling:
+  # Barrier settings - CRITICAL ADJUSTMENT for 15M
+  vertical_barrier:
+    days: 2  # REDUCED from 10 to 2 (48 bars instead of 960 bars)
+  
+  # Take Profit / Stop Loss - Adjusted for intraday volatility
+  barriers:
+    # Option 1: Fixed percentage (not recommended for 15M)
+    tp_pct: null  # Keep null to use volatility-scaled
+    sl_pct: null  # Keep null to use volatility-scaled
+    
+    # Option 2: Volatility-scaled (recommended for 15M)
+    tp_k: 1.5    # REDUCED from 2.0 (15M has smaller moves)
+    sl_k: 1.0    # Keep same or slightly reduce (less gap risk)
+  
+  # Volatility calculation - Adjusted for 15M
+  volatility:
+    window: 96   # 96 bars = 24 hours (instead of 20 bars daily)
+    method: "std"  # std, atr
+    is_percentage: true  # true for return std, false for price std
+  
+  # Tie handling when both TP and SL hit same bar
+  tie_policy: "ambiguous"  # ambiguous, tp, sl, closest
+  
+  # Minimum return threshold - Reduced for 15M noise
+  min_ret: 0.005  # REDUCED from 0.01 (0.5% vs 1%) - 15M has more noise
+  
+  # Use high/low for barrier checking (more realistic)
+  use_hl: true
+
+# Label encoding
+labels:
+  # Class mapping
+  class_names:
+    -1: "Sell"
+    0: "Hold" 
+    1: "Buy"
+  
+  # Distribution analysis - Expected for 15M
+  expected_distribution:
+    sell: 0.30    # Slightly more sell signals (intraday mean reversion)
+    hold: 0.40    # Less hold (more action in 15M)
+    buy: 0.30     # Slightly more buy signals
+
+# Grid search for optimal parameters - Reduced ranges for 15M
+optimization:
+  # Grid search ranges for labeling parameters
+  param_grid:
+    N: [1, 2, 3, 4]           # REDUCED from [5,10,15,20,30] - shorter holds
+    tp_k: [1.0, 1.5, 2.0]     # REDUCED from [1.5,2.0,2.5,3.0] - smaller moves
+    sl_k: [0.5, 1.0, 1.5]     # REDUCED from [0.5,1.0,1.5,2.0] - tighter stops
+    vol_window: [48, 96, 144] # 12H, 24H, 36H (vs 10,20,30 days)
+  
+  # Optimization metric
+  metric: "sharpe_ratio"  # sharpe_ratio, accuracy, f1_macro
+  
+  # Validation
+  cv_folds: 3 

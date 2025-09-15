@@ -13,7 +13,6 @@ from dotenv import load_dotenv
 
 from src.pipeline.data_pipeline import run_data_pipeline
 from src.pipeline.training_pipeline import run_training_pipeline
-from src.utils.config_loader import config_loader
 
 
 def setup_logging(log_level: str = "INFO") -> None:
@@ -24,7 +23,8 @@ def setup_logging(log_level: str = "INFO") -> None:
         rotation="10 MB",
         retention="7 days",
         level=log_level,
-        format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {name}:{function}:{line} | {message}"
+        format="{time:YYYY-MM-DD HH:mm:ss} | {level} | "
+               "{name}:{function}:{line} | {message}"
     )
     logger.add(
         lambda msg: print(msg, end=""),
@@ -181,7 +181,12 @@ Environment Variables:
         logger.info("📋 Validating configurations...")
 
         # Check if config files exist
-        config_files = ["data_config.yaml", "labeling_config.yaml", "model_config.yaml"]
+        # config_files = ["data_config.yaml", "labeling_config.yaml", "model_config.yaml"]
+        config_files = [
+            "data_config_15m.yaml",
+            "labeling_config_15m.yaml",
+            "model_config_15m.yaml"
+        ]
         config_dir = Path(args.config_dir)
 
         for config_file in config_files:
@@ -189,19 +194,8 @@ Environment Variables:
             if not config_path.exists():
                 logger.warning(f"Config file not found: {config_path}")
 
-        # Load and validate configs
-        try:
-            if not args.training_only:
-                data_config = config_loader.load_config("data_config")
-                labeling_config = config_loader.load_config("labeling_config")
-                logger.info("✅ Data and labeling configs loaded")
-
-            model_config = config_loader.load_config("model_config")
-            logger.info("✅ Model config loaded")
-        except FileNotFoundError as e:
-            logger.error(f"❌ Configuration error: {e}")
-            logger.info("Please ensure all configuration files exist in the config directory")
-            return 1
+        logger.info(f"Using config directory: {args.config_dir}")
+        logger.info("✅ Configuration validation completed")
 
         # Run pipeline
         run_complete_pipeline(

@@ -1,0 +1,121 @@
+# XGBoost Model Configuration for 15-minute timeframe
+model:
+  # Model type
+  algorithm: "xgboost"
+  
+  # XGBoost parameters - Optimized for larger 15M dataset
+  xgboost:
+    # Core parameters
+    objective: "multi:softprob"
+    num_class: 3
+    eval_metric: "mlogloss"
+    
+    # Learning parameters - Slightly more conservative for larger dataset
+    learning_rate: 0.08      # REDUCED from 0.1 (more data, can afford slower learning)
+    max_depth: 6             # Keep same (good balance)
+    min_child_weight: 3      # INCREASED from 1 (prevent overfitting)
+    subsample: 0.8           # Keep same
+    colsample_bytree: 0.8    # Keep same
+    
+    # Regularization - Increased for larger dataset
+    reg_alpha: 0.1           # INCREASED from 0 (L1 regularization)
+    reg_lambda: 1.5          # INCREASED from 1 (L2 regularization)
+    gamma: 0.1               # INCREASED from 0 (minimum loss reduction)
+    
+    # Other parameters
+    random_state: 42
+    n_jobs: -1
+    verbosity: 1
+  
+  # Training parameters - Adjusted for 15M performance
+  training:
+    n_estimators: 1000       # REDUCED from 2000 (more data, early stopping will handle)
+    early_stopping_rounds: 50  # REDUCED from 100 (faster feedback)
+    validation_split: 0.15   # REDUCED from 0.2 (more training data)
+    
+    # Class balancing
+    scale_pos_weight: null  # auto-calculate or set manually
+    class_weight: "balanced"  # None or "balanced"
+
+# Feature selection - More conservative for 15M
+feature_selection:
+  # Method
+  method: "importance"  # importance, correlation, mutual_info
+  
+  # Parameters - More selective
+  max_features: 40         # REDUCED from 50 (avoid noise features)
+  importance_threshold: 0.002  # INCREASED from 0.001 (more selective)
+  correlation_threshold: 0.90  # REDUCED from 0.95 (remove more correlated)
+
+# Cross-validation - Adjusted for 15M characteristics
+cross_validation:
+  # Time series CV
+  method: "time_series"  # time_series, walk_forward
+  n_splits: 3            # REDUCED from 5 (15M has intraday seasonality)
+  test_size: 0.15        # REDUCED from 0.2 (more training data)
+  
+  # Walk-forward specific
+  expanding_window: true
+  min_train_size: 1000   # INCREASED from 500 (more stable estimates)
+
+# Hyperparameter optimization - Reduced for performance
+hyperopt:
+  # Enable optimization
+  enabled: true
+  
+  # Optimization method
+  method: "optuna"  # optuna, grid_search, random_search
+  
+  # Trials - Reduced for faster iteration
+  n_trials: 50       # REDUCED from 100 (15M training takes longer)
+  timeout: 1800      # REDUCED from 3600 (30 minutes vs 1 hour)
+  
+  # Search space - Narrowed ranges for 15M
+  search_space:
+    learning_rate: [0.05, 0.15]     # Narrowed from [0.01, 0.3]
+    max_depth: [5, 10]              # Narrowed from [6, 15]  
+    min_child_weight: [2, 10]       # Shifted up from [5, 20]
+    subsample: [0.7, 0.9]           # Narrowed from [0.6, 1.0]
+    colsample_bytree: [0.7, 0.9]    # Narrowed from [0.6, 1.0]
+    reg_alpha: [0, 0.5]             # Narrowed from [0, 1]
+    reg_lambda: [0.5, 2.0]          # Shifted up from [0, 2]
+
+# Model evaluation
+evaluation:
+  # Metrics to track
+  metrics:
+    - "accuracy"
+    - "precision_macro"
+    - "recall_macro"
+    - "f1_macro"
+    - "roc_auc_ovr"
+  
+  # Economic metrics (for backtesting) - More relevant for 15M
+  economic_metrics:
+    - "sharpe_ratio"
+    - "sortino_ratio"
+    - "max_drawdown"
+    - "profit_factor"
+    - "hit_rate"
+    - "calmar_ratio"        # Added - important for intraday
+  
+  # Confusion matrix
+  plot_confusion_matrix: true
+  
+  # Feature importance
+  plot_feature_importance: true
+  top_features: 15          # REDUCED from 20 (focus on most important)
+
+# Model persistence
+persistence:
+  # Save model
+  save_model: true
+  model_path: "models/xgboost_model_15m.pkl"    # Different name for 15M
+  
+  # Save scaler
+  save_scaler: true
+  scaler_path: "models/feature_scaler_15m.pkl"  # Different name for 15M
+  
+  # Model versioning
+  versioning: true
+  version_format: "%Y%m%d_%H%M%S" 
