@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Real-time Signals</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .signals-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .confidence-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-left: 4px solid #3498db;
+        }
+        .confidence-40 { border-left-color: #3498db; }
+        .confidence-50 { border-left-color: #f1c40f; }
+        .confidence-60 { border-left-color: #f39c12; }
+        .confidence-70 { border-left-color: #e67e22; }
+        .confidence-80 { border-left-color: #e74c3c; }
+        
+        .signal-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px;
+            margin: 5px 0;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        .signal-buy { background: #d4edda; }
+        .signal-sell { background: #f8d7da; }
+        
+        .btn {
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .btn:hover { background: #229954; }
+        .btn:disabled { background: #95a5a6; cursor: not-allowed; }
+        
+        .log {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .status.info { background: #d1ecf1; color: #0c5460; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🧪 Test Real-time Trading Signals</h1>
+        <p>Test model predictions trước khi thị trường mở</p>
+    </div>
+
+    <div class="test-controls">
+        <h3>Test Controls</h3>
+        <button class="btn" onclick="testSingleSignal()">🎯 Test Single Signal</button>
+        <button class="btn" onclick="startSimulation()" id="simBtn">🔴 Start Simulation</button>
+        <button class="btn" onclick="stopSimulation()" id="stopBtn" disabled>🛑 Stop</button>
+        
+        <div id="status" class="status info">
+            Ready to test signals...
+        </div>
+    </div>
+
+    <div class="signals-container" id="signalsContainer">
+        <div class="confidence-card">
+            <h4>Chờ test signals...</h4>
+            <p>Click button phía trên để test</p>
+        </div>
+    </div>
+
+    <div class="log" id="logContainer">
+        <div>📊 Test Log Console</div>
+        <div>Ready to test...</div>
+    </div>
+
+    <script>
+        let simulationInterval = null;
+        let signalCount = 0;
+
+        function log(message) {
+            const logContainer = document.getElementById('logContainer');
+            const now = new Date().toLocaleTimeString();
+            logContainer.innerHTML += `<div>${now}: ${message}</div>`;
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function updateStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+        }
+
+        async function testSingleSignal() {
+            updateStatus('Testing single signal generation...', 'info');
+            log('🧪 Starting single signal test...');
+
+            try {
+                // Mock signal data (thay thế bằng API call thực)
+                const mockSignals = generateMockSignals();
+                displaySignals(mockSignals);
+                
+                updateStatus('✅ Single test completed', 'success');
+                log('✅ Single signal test completed');
+                
+            } catch (error) {
+                updateStatus(`❌ Test failed: ${error.message}`, 'error');
+                log(`❌ Error: ${error.message}`);
+            }
+        }
+
+        function generateMockSignals() {
+            const tickers = ['CTG', 'MBB', 'ACB'];
+            const confidenceLevels = [40, 50, 60, 70, 80];
+            const actions = ['BUY', 'SELL', 'HOLD'];
+            
+            const signals = {};
+            
+            confidenceLevels.forEach(conf => {
+                const signals_list = [];
+                
+                tickers.forEach(ticker => {
+                    const action = actions[Math.floor(Math.random() * actions.length)];
+                    const confidence = (conf + Math.random() * 10) / 100; // Random around threshold
+                    
+                    if (action !== 'HOLD' && Math.random() > 0.5) { // 50% chance of signal
+                        signals_list.push({
+                            ticker: ticker,
+                            action: action,
+                            confidence: confidence
+                        });
+                    }
+                });
+                
+                signals[`confidence_${conf}`] = {
+                    threshold: conf / 100,
+                    signals: signals_list,
+                    summary: {
+                        active_signals: signals_list.length,
+                        buy_signals: signals_list.filter(s => s.action === 'BUY').length,
+                        sell_signals: signals_list.filter(s => s.action === 'SELL').length
+                    }
+                };
+            });
+            
+            return signals;
+        }
+
+        function displaySignals(signals) {
+            const container = document.getElementById('signalsContainer');
+            let html = '';
+            
+            Object.entries(signals).forEach(([confKey, confData]) => {
+                const confLevel = Math.round(confData.threshold * 100);
+                const activeSignals = confData.signals;
+                
+                html += `
+                    <div class="confidence-card confidence-${confLevel}">
+                        <h4>Confidence ${confLevel}%</h4>
+                        <p>Active: ${activeSignals.length} | Buy: ${confData.summary.buy_signals} | Sell: ${confData.summary.sell_signals}</p>
+                        
+                        <div class="signals-list">
+                `;
+                
+                activeSignals.forEach(signal => {
+                    const actionClass = signal.action.toLowerCase();
+                    html += `
+                        <div class="signal-item signal-${actionClass}">
+                            <span><strong>${signal.ticker}</strong></span>
+                            <span>${signal.action}</span>
+                            <span>${(signal.confidence * 100).toFixed(1)}%</span>
+                        </div>
+                    `;
+                });
+                
+                if (activeSignals.length === 0) {
+                    html += '<div class="signal-item">No active signals</div>';
+                }
+                
+                html += `
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        function startSimulation() {
+            if (simulationInterval) return;
+            
+            updateStatus('🔴 Simulation running...', 'info');
+            log('🔴 Starting real-time simulation...');
+            
+            document.getElementById('simBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            
+            // Update every 3 seconds
+            simulationInterval = setInterval(() => {
+                signalCount++;
+                const mockSignals = generateMockSignals();
+                displaySignals(mockSignals);
+                
+                log(`📡 Signal update #${signalCount}`);
+                
+                // Log some sample signals
+                Object.entries(mockSignals).forEach(([confKey, confData]) => {
+                    const activeSignals = confData.signals;
+                    if (activeSignals.length > 0) {
+                        const signalText = activeSignals.map(s => `${s.ticker}:${s.action}`).join(', ');
+                        log(`🎯 ${Math.round(confData.threshold * 100)}%: ${signalText}`);
+                    }
+                });
+                
+            }, 3000);
+        }
+
+        function stopSimulation() {
+            if (simulationInterval) {
+                clearInterval(simulationInterval);
+                simulationInterval = null;
+                signalCount = 0;
+                
+                updateStatus('🛑 Simulation stopped', 'info');
+                log('🛑 Simulation stopped');
+                
+                document.getElementById('simBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = true;
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            log('🚀 Test chart loaded');
+            log('Click buttons above to test signals');
+        });
+    </script>
+</body>
+</html> 

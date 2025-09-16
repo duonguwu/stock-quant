@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title }} - Stock Charts</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .nav-links a {
+            color: #3498db;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            transition: background-color 0.3s;
+        }
+
+        .nav-links a:hover {
+            background-color: rgba(52, 152, 219, 0.1);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        .controls {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 1.5rem;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        .load-data-section {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .load-btn {
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.3s;
+        }
+
+        .load-btn:hover {
+            background: #229954;
+        }
+
+        .load-btn:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+        }
+
+        .status-text {
+            font-size: 0.9rem;
+            color: #7f8c8d;
+        }
+
+        .tabs {
+            display: flex;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px 12px 0 0;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .tab {
+            flex: 1;
+            padding: 1rem;
+            text-align: center;
+            cursor: pointer;
+            background: #f8f9fa;
+            border: none;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #6c757d;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            background: #fff;
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+        }
+
+        .tab:hover {
+            background: #e9ecef;
+        }
+
+        .tab-content {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 2rem;
+            border-radius: 0 0 12px 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 500px;
+            margin-bottom: 2rem;
+        }
+
+        .confidence-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .confidence-card {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
+        }
+
+        .confidence-card.confidence-40 { border-left-color: #3498db; }
+        .confidence-card.confidence-50 { border-left-color: #f1c40f; }
+        .confidence-card.confidence-60 { border-left-color: #f39c12; }
+        .confidence-card.confidence-70 { border-left-color: #e67e22; }
+        .confidence-card.confidence-80 { border-left-color: #e74c3c; }
+
+        .confidence-header {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #2c3e50;
+        }
+
+        .confidence-stats {
+            font-size: 0.9rem;
+            color: #7f8c8d;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #7f8c8d;
+        }
+
+        .error {
+            text-align: center;
+            padding: 2rem;
+            color: #e74c3c;
+            background: #ffeaea;
+            border-radius: 8px;
+        }
+
+        .ticker-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .data-range {
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📈 Stock Charts Dashboard</h1>
+        <p>15-minute charts từ 15/03/2025 với multiple confidence levels</p>
+        
+        <div class="nav-links">
+            <a href="/">🏠 Main Dashboard</a>
+            <a href="/charts">📊 Charts</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Controls -->
+        <div class="controls">
+            <div class="load-data-section">
+                <button class="load-btn" onclick="loadHistoricalData()">
+                    📊 Load Historical Data (15/03/2025 → Now)
+                </button>
+                <span class="status-text" id="load-status">Click to load historical data...</span>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            {% for ticker in tickers %}
+            <button class="tab {% if loop.first %}active{% endif %}" 
+                    onclick="showTab('{{ ticker }}')">
+                {{ ticker }}
+            </button>
+            {% endfor %}
+        </div>
+
+        <!-- Tab Contents -->
+        {% for ticker in tickers %}
+        <div class="tab-content {% if loop.first %}active{% endif %}" id="tab-{{ ticker }}">
+            <div class="ticker-info">
+                <h2>{{ ticker }} - 15m Chart</h2>
+                <div class="data-range" id="range-{{ ticker }}">
+                    Load data to see range
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <canvas id="chart-{{ ticker }}"></canvas>
+            </div>
+
+            <!-- Confidence Levels Grid -->
+            <div class="confidence-grid" id="confidence-{{ ticker }}">
+                <div class="loading">Load data to see signals...</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <script>
+        let charts = {};
+        let chartData = {};
+
+        // Tab switching
+        function showTab(ticker) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Show selected tab
+            document.getElementById(`tab-${ticker}`).classList.add('active');
+            event.target.classList.add('active');
+
+            // Load chart data if not loaded
+            if (!chartData[ticker]) {
+                loadChartData(ticker);
+            }
+        }
+
+        // Load historical data
+        async function loadHistoricalData() {
+            const btn = document.querySelector('.load-btn');
+            const status = document.getElementById('load-status');
+            
+            btn.disabled = true;
+            btn.textContent = '🔄 Loading...';
+            status.textContent = 'Fetching historical data...';
+
+            try {
+                const response = await fetch('/api/load-historical');
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    status.textContent = `✅ Loaded ${result.data.rows} rows for ${result.data.tickers.length} tickers`;
+                    btn.textContent = '✅ Data Loaded';
+                    
+                    // Load chart data for active ticker
+                    const activeTicker = document.querySelector('.tab.active').textContent.trim();
+                    loadChartData(activeTicker);
+                } else {
+                    status.textContent = `❌ Error: ${result.message}`;
+                    btn.textContent = '❌ Failed';
+                }
+            } catch (error) {
+                console.error('Load historical error:', error);
+                status.textContent = `❌ Error: ${error.message}`;
+                btn.textContent = '❌ Failed';
+            }
+
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.textContent = '📊 Reload Data';
+            }, 3000);
+        }
+
+        // Load chart data for specific ticker
+        async function loadChartData(ticker) {
+            const chartContainer = document.getElementById(`chart-${ticker}`);
+            const confidenceContainer = document.getElementById(`confidence-${ticker}`);
+            const rangeContainer = document.getElementById(`range-${ticker}`);
+
+            // Show loading
+            confidenceContainer.innerHTML = '<div class="loading">Loading chart data...</div>';
+
+            try {
+                const response = await fetch(`/api/chart-data/${ticker}`);
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    chartData[ticker] = result.data;
+                    
+                    // Update data range
+                    const range = result.data.data_range;
+                    rangeContainer.textContent = `${range.start.split('T')[0]} → ${range.end.split('T')[0]} (${range.total_bars} bars)`;
+
+                    // Create chart
+                    createChart(ticker, result.data);
+                    
+                    // Create confidence cards
+                    createConfidenceCards(ticker, result.data.predictions);
+                } else {
+                    confidenceContainer.innerHTML = `<div class="error">${result.message}</div>`;
+                }
+            } catch (error) {
+                console.error(`Chart data error for ${ticker}:`, error);
+                confidenceContainer.innerHTML = `<div class="error">Error loading chart: ${error.message}</div>`;
+            }
+        }
+
+        // Create price chart with signals
+        function createChart(ticker, data) {
+            const ctx = document.getElementById(`chart-${ticker}`).getContext('2d');
+            
+            // Destroy existing chart
+            if (charts[ticker]) {
+                charts[ticker].destroy();
+            }
+
+            const priceData = data.price_data;
+            const labels = priceData.map(d => new Date(d.timestamp).toLocaleDateString('vi-VN'));
+            const prices = priceData.map(d => d.close);
+
+            charts[ticker] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: `${ticker} Price`,
+                        data: prices,
+                        borderColor: '#3498db',
+                        backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `${ticker} - 15m Price Chart`
+                        },
+                        legend: {
+                            position: 'top'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            title: {
+                                display: true,
+                                text: 'Price (VND)'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Date'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Create confidence level cards
+        function createConfidenceCards(ticker, predictions) {
+            const container = document.getElementById(`confidence-${ticker}`);
+            
+            if (!predictions || Object.keys(predictions).length === 0) {
+                container.innerHTML = '<div class="error">No prediction data available</div>';
+                return;
+            }
+
+            let html = '';
+            for (const [confKey, confData] of Object.entries(predictions)) {
+                const confLevel = Math.round(confData.threshold * 100);
+                
+                html += `
+                    <div class="confidence-card confidence-${confLevel}">
+                        <div class="confidence-header">
+                            Confidence ${confLevel}%
+                        </div>
+                        <div class="confidence-stats">
+                            <div>Total Signals: ${confData.signals.length}</div>
+                            <div>Buy: ${confData.signals.filter(s => s.action === 'BUY').length}</div>
+                            <div>Sell: ${confData.signals.filter(s => s.action === 'SELL').length}</div>
+                            <div>Summary: ${JSON.stringify(confData.summary.active_signals || 0)} active</div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Charts page loaded');
+        });
+    </script>
+</body>
+</html> 
