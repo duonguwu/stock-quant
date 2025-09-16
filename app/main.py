@@ -94,7 +94,7 @@ async def lifespan(app: FastAPI):
         try:
             telegram_bot = TelegramSignalBot(min_confidence=0.65)
             if telegram_bot.bot_token and telegram_bot.chat_id:
-                logger.info("✅ Telegram bot initialized")
+        logger.info("✅ Telegram bot initialized")
             else:
                 logger.info("💬 Telegram bot disabled (no credentials)")
                 telegram_bot = None
@@ -543,7 +543,7 @@ async def get_backtest_data():
                 'status': 'error', 
                 'message': 'No data or model available for backtest'
             })
-            
+                
     except Exception as e:
         logger.error(f"❌ Backtest API error: {e}")
         return JSONResponse({
