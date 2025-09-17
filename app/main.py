@@ -35,6 +35,56 @@ current_data = {}
 historical_data = {}
 realtime_running = False
 
+# Cache để theo dõi cửa sổ 15 phút cho mỗi ticker + confidence level
+last_signal_window = {}  # {(ticker, conf_key): window_start}
+
+
+def get_15m_window_start(timestamp: datetime) -> datetime:
+    """Lấy thời gian bắt đầu cửa sổ 15 phút cho timestamp"""
+    return timestamp.replace(minute=(timestamp.minute // 15) * 15, second=0, microsecond=0)
+
+
+def get_15m_bar_price(ticker: str, window_start: datetime) -> Dict:
+    """Lấy giá 15m bar từ historical_data hoặc fallback realtime"""
+    global historical_data, current_data
+    
+    # Tìm bar 15m từ historical_data trước
+    if 'raw_data' in historical_data:
+        raw_data = historical_data['raw_data']
+        ticker_data = raw_data[raw_data['ticker'] == ticker]
+        
+        # Tìm bar có timestamp gần nhất với window_start
+        if len(ticker_data) > 0:
+            ticker_data = ticker_data.copy()
+            ticker_data['time_diff'] = abs((ticker_data['timestamp'] - window_start).dt.total_seconds())
+            closest_bar = ticker_data.loc[ticker_data['time_diff'].idxmin()]
+            
+            if closest_bar['time_diff'] <= 900:  # Trong vòng 15 phút
+                return {
+                    'price_close_15m': float(closest_bar['close']),
+                    'price_at_signal': float(closest_bar['close']),
+                    'volume': int(closest_bar.get('volume', 0)),
+                    'change_pct': float(closest_bar.get('change_pct', 0))
+                }
+    
+    # Fallback: dùng realtime data
+    latest_bars = current_data.get('latest_bars', {})
+    if ticker in latest_bars:
+        bar = latest_bars[ticker]
+        return {
+            'price_close_15m': float(bar.get('close', 0)),
+            'price_at_signal': float(bar.get('close', 0)),
+            'volume': int(bar.get('volume', 0)),
+            'change_pct': float(bar.get('change_pct', 0))
+        }
+    
+    return {
+        'price_close_15m': 0,
+        'price_at_signal': 0,
+        'volume': 0,
+        'change_pct': 0
+    }
+
 
 # WebSocket connections
 class ConnectionManager:
@@ -502,8 +552,8 @@ def start_realtime_pipeline():
 
 
 async def save_signals_to_database(predictions: Dict, latest_bars: Dict):
-    """Save signals to MongoDB for dashboard display"""
-    global data_fetcher
+    """Save signals to MongoDB for dashboard display - với 15m window logic"""
+    global data_fetcher, last_signal_window
 
     try:
         if data_fetcher is None or data_fetcher.db is None:
@@ -512,6 +562,9 @@ async def save_signals_to_database(predictions: Dict, latest_bars: Dict):
 
         signals_collection = data_fetcher.db.realtime_signals
         current_time = datetime.now()
+        
+        # Lấy cửa sổ 15 phút hiện tại
+        current_window = get_15m_window_start(current_time)
 
         for conf_key, conf_data in predictions.items():
             signals = conf_data.get('signals', [])
@@ -520,20 +573,31 @@ async def save_signals_to_database(predictions: Dict, latest_bars: Dict):
             for signal in signals:
                 if signal.get('action') != 'HOLD':
                     ticker = signal.get('ticker')
-                    bar = latest_bars.get(ticker, {}) if latest_bars else {}
-
+                    
+                    # Kiểm tra xem đã gửi signal cho ticker + conf_key trong cửa sổ này chưa
+                    cache_key = (ticker, conf_key)
+                    if cache_key in last_signal_window and last_signal_window[cache_key] == current_window:
+                        logger.info(f"⏭️ Skipping {ticker} {conf_key} signal - already sent in current window")
+                        continue
+                    
+                    # Lấy giá chính xác từ 15m bar
+                    price_info = get_15m_bar_price(ticker, current_window)
+                    
                     signal_doc = {
-                        '_id': f"{ticker}_{conf_key}_{current_time.isoformat()}",
+                        '_id': f"{ticker}_{conf_key}_{current_window.isoformat()}",
                         'ticker': ticker,
                         'action': signal.get('action'),
                         'confidence': signal.get('confidence'),
                         'confidence_level': conf_key,
                         'confidence_threshold': confidence_threshold,
-                        'price': bar.get('close', 0),
-                        'volume': bar.get('volume', 0),
-                        'change_pct': bar.get('change_pct', 0),
-                        'timestamp': current_time,
-                        'created_at': current_time
+                        'price_close_15m': price_info['price_close_15m'],
+                        'price_at_signal': price_info['price_at_signal'],
+                        'volume': price_info['volume'],
+                        'change_pct': price_info['change_pct'],
+                        'timestamp': current_window,  # Dùng window_start thay vì current_time
+                        'created_at': current_time,
+                        'window_start': current_window,
+                        'source': 'realtime'
                     }
 
                     await signals_collection.update_one(
@@ -541,46 +605,66 @@ async def save_signals_to_database(predictions: Dict, latest_bars: Dict):
                         {'$set': signal_doc},
                         upsert=True
                     )
+                    
+                    # Cập nhật cache
+                    last_signal_window[cache_key] = current_window
 
-                    logger.info(
-                        f"💾 Saved {ticker} {signal.get('action')} signal to DB")
+                    logger.info(f"💾 Saved {ticker} {signal.get('action')} signal to DB "
+                              f"(window: {current_window.strftime('%H:%M')}, "
+                              f"price: {price_info['price_close_15m']:.0f})")
 
     except Exception as e:
         logger.error(f"❌ Error saving signals to database: {e}")
 
 
 async def send_signals_to_telegram(predictions: Dict, latest_bars: Dict):
-    """Send signals to Telegram - EXACT COPY from test_realtime_with_telegram.py"""
+    """Send signals to Telegram - với 15m window logic"""
+    global last_signal_window
+    
     try:
-        logger.info(
-            f"📱 Telegram bot min_confidence: {telegram_bot.min_confidence}")
+        logger.info(f"📱 Telegram bot min_confidence: {telegram_bot.min_confidence}")
+        
+        current_time = datetime.now()
+        current_window = get_15m_window_start(current_time)
 
         for conf_key, conf_data in predictions.items():
             confidence_threshold = conf_data.get('confidence_threshold', 0)
 
             if confidence_threshold >= telegram_bot.min_confidence:
-                logger.info(
-                    f"✅ Processing {conf_key} (threshold: {confidence_threshold:.2f})")
+                logger.info(f"✅ Processing {conf_key} (threshold: {confidence_threshold:.2f})")
                 signals = conf_data.get('signals', [])
 
                 for signal in signals:
                     if signal.get('action') != 'HOLD':
                         ticker = signal.get('ticker')
+                        
+                        # Kiểm tra cache cho Telegram
+                        cache_key = (ticker, conf_key)
+                        if cache_key in last_signal_window and last_signal_window[cache_key] == current_window:
+                            logger.info(f"⏭️ Skipping Telegram {ticker} {conf_key} - already sent in current window")
+                            continue
+                        
                         if ticker in latest_bars:
                             bar = latest_bars[ticker]
+                            price_info = get_15m_bar_price(ticker, current_window)
+                            
                             signal_enhanced = {
                                 **signal,
-                                'price': bar.get('close', 0),
-                                'volume': bar.get('volume', 0),
-                                'change_pct': bar.get('change_pct', 0),
-                                'timestamp': datetime.now()
+                                'price': price_info['price_close_15m'],  # Dùng giá 15m bar
+                                'volume': price_info['volume'],
+                                'change_pct': price_info['change_pct'],
+                                'timestamp': current_window,  # Dùng window_start
+                                'window_start': current_window
                             }
 
-                            logger.info(
-                                f"📱 Sending {ticker} {signal['action']} to Telegram")
+                            logger.info(f"�� Sending {ticker} {signal['action']} to Telegram "
+                                      f"(window: {current_window.strftime('%H:%M')})")
                             await telegram_bot._process_individual_signal(
                                 signal_enhanced, confidence_threshold
                             )
+                            
+                            # Cập nhật cache cho Telegram
+                            last_signal_window[cache_key] = current_window
 
     except Exception as e:
         logger.error(f"❌ Error sending to Telegram: {e}")
