@@ -248,8 +248,11 @@ class BacktestRunner:
             monthly_returns = self._calculate_monthly_returns()
             if not monthly_returns.empty:
                 sns.heatmap(
-                    monthly_returns, annot=True, fmt='.1%', cmap='RdYlGn', center=0
-                )
+                    monthly_returns,
+                    annot=True,
+                    fmt='.1%',
+                    cmap='RdYlGn',
+                    center=0)
                 plt.title('Monthly Returns')
 
         # 6. Win Rate by Confidence

@@ -3,6 +3,7 @@
 Simple script to run the trading signals app with monitoring
 """
 
+from config.settings import get_settings
 import uvicorn
 import asyncio
 import sys
@@ -11,13 +12,11 @@ from pathlib import Path
 # Add current directory to path
 sys.path.append(str(Path(__file__).parent))
 
-from config.settings import get_settings
-
 
 def check_dependencies():
     """Check if required services are running"""
     import socket
-    
+
     def check_port(host, port, service_name):
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -33,41 +32,43 @@ def check_dependencies():
         except Exception as e:
             print(f"❌ Error checking {service_name}: {e}")
             return False
-    
+
     print("🔍 Checking required services...")
-    
+
     # Check MongoDB
     mongodb_ok = check_port("localhost", 27017, "MongoDB")
-    
+
     # Check Redis
     redis_ok = check_port("localhost", 6379, "Redis")
-    
+
     if not mongodb_ok:
         print("\n🚨 MongoDB is required!")
-        print("Start with: docker run -d --name mongo-container -p 27017:27017 mongo:latest")
-        
+        print(
+            "Start with: docker run -d --name mongo-container -p 27017:27017 mongo:latest")
+
     if not redis_ok:
         print("\n🚨 Redis is required!")
-        print("Start with: docker run -d --name redis-container -p 6379:6379 redis:7-alpine")
-    
+        print(
+            "Start with: docker run -d --name redis-container -p 6379:6379 redis:7-alpine")
+
     return mongodb_ok and redis_ok
 
 
 def show_app_info():
     """Show application information"""
     settings = get_settings()
-    
-    print("\n" + "="*60)
+
+    print("\n" + "=" * 60)
     print("🚀 TRADING SIGNALS APP")
-    print("="*60)
+    print("=" * 60)
     print(f"📊 Dashboard: http://localhost:8000")
     print(f"🔌 WebSocket: ws://localhost:8000/ws/signals")
     print(f"📱 API Docs: http://localhost:8000/docs")
-    print("="*60)
+    print("=" * 60)
     print(f"🎯 Tickers: {settings.default_tickers}")
     print(f"🔑 FiinQuantX: {settings.fiin_username}")
     print(f"💾 MongoDB: {settings.mongodb_url}")
-    print("="*60)
+    print("=" * 60)
     print("\n🎯 HOẠT ĐỘNG CỦA ỨNG DỤNG:")
     print("1. Fetch dữ liệu 15m từ FiinQuantX")
     print("2. Feature engineering (7 → 56 columns)")
@@ -83,7 +84,7 @@ async def monitor_app():
     """Monitor app status"""
     print("\n🔄 App is running... Press Ctrl+C to stop")
     print("📊 Monitoring signals generation every 5 minutes...")
-    
+
     try:
         while True:
             await asyncio.sleep(60)  # Check every minute
@@ -95,15 +96,15 @@ async def monitor_app():
 def main():
     """Main function"""
     print("🚀 Starting Trading Signals Dashboard...")
-    
+
     # Check dependencies
     if not check_dependencies():
         print("\n❌ Please start required services and try again")
         return 1
-    
+
     # Show app info
     show_app_info()
-    
+
     try:
         # Run FastAPI app
         print("\n🌟 Starting web server...")
@@ -114,7 +115,7 @@ def main():
             reload=False,  # Disable reload for production
             log_level="info"
         )
-        
+
     except KeyboardInterrupt:
         print("\n🛑 App stopped by user")
         return 0
@@ -124,4 +125,4 @@ def main():
 
 
 if __name__ == "__main__":
-    exit(main()) 
+    exit(main())

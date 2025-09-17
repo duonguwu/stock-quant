@@ -65,7 +65,7 @@ Examples:
 
     parser.add_argument(
         "--model",
-        default="models/model1721/xgboost_model.pkl",
+        default="models/model15/xgboost_model.pkl",
         help=(
             "Path to trained model file "
             "(default: models/model1620/xgboost_model.pkl)"
@@ -74,19 +74,19 @@ Examples:
 
     parser.add_argument(
         "--scaler",
-        default="models/model1721/feature_scaler.pkl",
+        default="models/model15/feature_scaler.pkl",
         help=(
             "Path to feature scaler file "
-            "(default: models/model1721/feature_scaler.pkl)"
+            "(default: models/model15/feature_scaler.pkl)"
         ),
     )
 
     parser.add_argument(
         "--test-data",
-        default="data/backtest_data/data_22_down.csv",
+        default="data/backtest_data/chart_15m_new.csv",
         help=(
             "Path to test data CSV "
-            "(default: data/backtest_data/data_21_up.csv)"
+            "(default: data/backtest_data/chart_15m_new.csv)"
         ),
     )
 

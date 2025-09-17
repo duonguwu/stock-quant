@@ -178,7 +178,8 @@ Examples:
         logger.info(f"Model: {args.model}")
         logger.info(f"Test Data: {args.test_data}")
         logger.info(f"Confidence Threshold: {args.confidence}")
-        logger.info(f"Holding Period: {args.holding_period_bars} bars (~{args.holding_period_bars/18:.1f} days)")
+        logger.info(
+            f"Holding Period: {args.holding_period_bars} bars (~{args.holding_period_bars/18:.1f} days)")
         logger.info(f"Transaction Cost: {args.transaction_cost:.4f}")
         logger.info(f"Output: {unique_output}")
 
@@ -213,4 +214,4 @@ Examples:
 
 
 if __name__ == "__main__":
-    exit(main()) 
+    exit(main())

@@ -64,7 +64,8 @@ class BacktestRunner:
 
         # Generate signals for visualization
         self.test_data = test_data.copy()
-        self.signals = self.engine.generate_signals(self.test_data, confidence_threshold)
+        self.signals = self.engine.generate_signals(
+            self.test_data, confidence_threshold)
 
         from collections import Counter
         cnt = Counter([t.ticker for t in self.results.trades])
@@ -262,8 +263,11 @@ class BacktestRunner:
             monthly_returns = self._calculate_monthly_returns()
             if not monthly_returns.empty:
                 sns.heatmap(
-                    monthly_returns, annot=True, fmt='.1%', cmap='RdYlGn', center=0
-                )
+                    monthly_returns,
+                    annot=True,
+                    fmt='.1%',
+                    cmap='RdYlGn',
+                    center=0)
                 plt.title('Monthly Returns')
 
         # 6. Win Rate by Confidence
@@ -319,12 +323,14 @@ class BacktestRunner:
         # Portfolio annualized return
         days = (eq_curve.index - eq_curve.index[0]).days
         days = np.where(days == 0, 1, days)
-        portfolio_cagr = (eq_curve['equity'] / eq_curve['equity'].iloc[0]) ** (365 / days) - 1
+        portfolio_cagr = (
+            eq_curve['equity'] / eq_curve['equity'].iloc[0]) ** (365 / days) - 1
         portfolio_cagr = portfolio_cagr * 100
 
-
         # Benchmark annualized return (nếu có)
-        if hasattr(self.results, "benchmark_df") and self.results.benchmark_df is not None:
+        if hasattr(
+                self.results,
+                "benchmark_df") and self.results.benchmark_df is not None:
             idx = self.results.benchmark_df.copy()
             idx.index = pd.to_datetime(idx.index)
             idx_perf = (idx['close'] / idx['close'].iloc[0] - 1.0) * 100
@@ -338,9 +344,18 @@ class BacktestRunner:
 
         # Plot
         plt.figure(figsize=(12, 6))
-        plt.plot(portfolio_cagr.index, portfolio_cagr, label="Portfolio", linewidth=2)
+        plt.plot(
+            portfolio_cagr.index,
+            portfolio_cagr,
+            label="Portfolio",
+            linewidth=2)
         if idx_perf is not None:
-            plt.plot(idx_perf.index, idx_perf, label="VNINDEX", linewidth=2, color="orange")
+            plt.plot(
+                idx_perf.index,
+                idx_perf,
+                label="VNINDEX",
+                linewidth=2,
+                color="orange")
 
         plt.title("Portfolio vs VNINDEX Annualized Performance")
         plt.ylabel("Annualized Return (%)")
@@ -350,13 +365,18 @@ class BacktestRunner:
         plt.tight_layout()
 
         # Save ảnh riêng
-        plt.savefig(output_path / "portfolio_vs_vnindex_annualized.png", dpi=300, bbox_inches="tight")
+        plt.savefig(
+            output_path /
+            "portfolio_vs_vnindex_annualized.png",
+            dpi=300,
+            bbox_inches="tight")
         plt.close()
 
     def _generate_price_charts(self, output_path: Path) -> None:
         """Generate price charts with signals for each ticker"""
         if self.test_data is None or self.signals is None:
-            logger.warning("No test data or signals available for price charts")
+            logger.warning(
+                "No test data or signals available for price charts")
             return
 
         # Create directory for price charts
@@ -384,8 +404,11 @@ class BacktestRunner:
         ticker_trades = [t for t in self.results.trades if t.ticker == ticker]
 
         # Create figure
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 10), height_ratios=[3, 1])
-        ax1.set_title(f'{ticker} - Executed Trades (n={len(ticker_trades)})', fontsize=14)
+        fig, (ax1, ax2) = plt.subplots(
+            2, 1, figsize=(15, 10), height_ratios=[3, 1])
+        ax1.set_title(
+            f'{ticker} - Executed Trades (n={len(ticker_trades)})',
+            fontsize=14)
 
         # Plot 1: Price and signals
         dates = pd.to_datetime(ticker_data['timestamp'])
@@ -399,16 +422,18 @@ class BacktestRunner:
         sell_signals = ticker_signals[ticker_signals['signal'] == -1]
 
         if not buy_signals.empty:
-            buy_dates = pd.to_datetime(ticker_data.loc[buy_signals.index, 'timestamp'])
+            buy_dates = pd.to_datetime(
+                ticker_data.loc[buy_signals.index, 'timestamp'])
             buy_prices = ticker_data.loc[buy_signals.index, 'close']
             ax1.scatter(buy_dates, buy_prices, color='green', marker='^',
-                       s=100, label='Buy Signal', zorder=5)
+                        s=100, label='Buy Signal', zorder=5)
 
         if not sell_signals.empty:
-            sell_dates = pd.to_datetime(ticker_data.loc[sell_signals.index, 'timestamp'])
+            sell_dates = pd.to_datetime(
+                ticker_data.loc[sell_signals.index, 'timestamp'])
             sell_prices = ticker_data.loc[sell_signals.index, 'close']
             ax1.scatter(sell_dates, sell_prices, color='red', marker='v',
-                       s=100, label='Sell Signal', zorder=5)
+                        s=100, label='Sell Signal', zorder=5)
 
         # Plot entry/exit points from trades
         for trade in ticker_trades:
@@ -416,29 +441,46 @@ class BacktestRunner:
             exit_date = pd.to_datetime(trade.exit_date)
 
             # Find closest dates in data
-            entry_idx = ticker_data[ticker_data['timestamp'] == trade.entry_date].index
-            exit_idx = ticker_data[ticker_data['timestamp'] == trade.exit_date].index
+            entry_idx = ticker_data[ticker_data['timestamp']
+                                    == trade.entry_date].index
+            exit_idx = ticker_data[ticker_data['timestamp']
+                                   == trade.exit_date].index
 
             if not entry_idx.empty and not exit_idx.empty:
                 entry_price = ticker_data.loc[entry_idx[0], 'close']
                 exit_price = ticker_data.loc[exit_idx[0], 'close']
 
                 # Plot entry point
-                ax1.scatter(entry_date, entry_price, color='darkgreen', 
-                           marker='o', s=150, label='Entry' if trade == ticker_trades[0] else "", 
-                           zorder=6, edgecolor='white', linewidth=2)
+                ax1.scatter(
+                    entry_date,
+                    entry_price,
+                    color='darkgreen',
+                    marker='o',
+                    s=150,
+                    label='Entry' if trade == ticker_trades[0] else "",
+                    zorder=6,
+                    edgecolor='white',
+                    linewidth=2)
 
                 # Plot exit point
                 color = 'darkred' if trade.return_pct < 0 else 'darkgreen'
-                ax1.scatter(exit_date, exit_price, color=color, 
-                           marker='x', s=150, label='Exit' if trade == ticker_trades[0] else "", 
-                           zorder=6, linewidth=3)
+                ax1.scatter(
+                    exit_date,
+                    exit_price,
+                    color=color,
+                    marker='x',
+                    s=150,
+                    label='Exit' if trade == ticker_trades[0] else "",
+                    zorder=6,
+                    linewidth=3)
 
                 # Draw line between entry and exit
-                ax1.plot([entry_date, exit_date], [entry_price, exit_price], 
-                        color=color, alpha=0.7, linewidth=2)
+                ax1.plot([entry_date, exit_date], [entry_price, exit_price],
+                         color=color, alpha=0.7, linewidth=2)
 
-        ax1.set_title(f'{ticker} - Price Chart with Signals and Trades', fontsize=14)
+        ax1.set_title(
+            f'{ticker} - Price Chart with Signals and Trades',
+            fontsize=14)
         ax1.set_ylabel('Price (VND)')
         ax1.legend()
         ax1.grid(True, alpha=0.3)
@@ -533,7 +575,7 @@ class BacktestRunner:
                 output_path / "equity_curve.csv", index=False
             )
 
-        # Save drawdown curve  
+        # Save drawdown curve
         if not self.results.drawdown_curve.empty:
             self.results.drawdown_curve.to_csv(
                 output_path / "drawdown_curve.csv", index=False
@@ -562,7 +604,8 @@ class BacktestRunner:
         print("PORTFOLIO BACKTEST RESULTS")
         print("=" * 40)
         print(f"Portfolio Return [%]: {self.results.annualized_return:.2%}")
-        print(f"Portfolio Max Drawdown [%]: {abs(self.results.max_drawdown):.2%}")
+        print(
+            f"Portfolio Max Drawdown [%]: {abs(self.results.max_drawdown):.2%}")
         print(f"Total Trades: {self.results.total_trades}")
         print(f"Win Rate [%] (est.): {self.results.win_rate:.2%}")
         print("=" * 40)

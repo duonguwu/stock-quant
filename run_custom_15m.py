@@ -20,7 +20,12 @@ def _unique_filename(prefix: str = "custom_test_data") -> str:
     return f"{prefix}_{ts}.csv"
 
 
-def compute_backtest_window(as_of_date: datetime, max_window_bars: int = 504, buffer_bars: int = 90, bars_per_day: int = 18):
+def compute_backtest_window(
+    as_of_date: datetime,
+    max_window_bars: int = 504,
+    buffer_bars: int = 90,
+    bars_per_day: int = 18
+):
     """
     Tính khoảng thời gian cần lấy dữ liệu cho backtest 15m.
     - max_window_bars: cửa sổ lớn nhất (504 bar ~ 28 ngày giao dịch)
@@ -42,7 +47,7 @@ def prepare_backtest_features(
     fetcher = create_data_fetcher(username, password)
     data = fetcher.fetch_trading_data(
         tickers=tickers,
-        fields=["open", "high", "low", "close", "volume", "bu", "sd"],  # thêm bu/sd nếu có
+        fields=["open", "high", "low", "close", "volume", "bu", "sd"],
         start_date=start_date,
         end_date=end_date,
         timeframe="15m",
@@ -80,8 +85,12 @@ if __name__ == "__main__":
     ref_path = "data/final/test_data.csv"
     if os.path.exists(ref_path):
         test_ref = pd.read_csv(ref_path)
-        ignore_cols = ["label", "hit_time", "hit_type", "ub", "lb", "vbar_end"]
-        feature_cols = [col for col in test_ref.columns if col not in ignore_cols]
+        ignore_cols = [
+            "label", "hit_time", "hit_type", "ub", "lb", "vbar_end"
+        ]
+        feature_cols = [
+            col for col in test_ref.columns if col not in ignore_cols
+        ]
 
         for col in feature_cols:
             if col not in features.columns:

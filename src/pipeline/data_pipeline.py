@@ -34,7 +34,8 @@ class DataPipeline:
         self.data_fetcher = create_data_fetcher(self.username, self.password)
 
         # Create feature engineer
-        self.feature_engineer = create_feature_engineer(self.data_fetcher.client)
+        self.feature_engineer = create_feature_engineer(
+            self.data_fetcher.client)
 
         logger.info("Data pipeline setup completed")
 
@@ -83,7 +84,8 @@ class DataPipeline:
 
         # Step 3: Feature engineering
         logger.info("Step 3: Engineering features...")
-        featured_data = self.feature_engineer.engineer_features(labeled_data, config)
+        featured_data = self.feature_engineer.engineer_features(
+            labeled_data, config)
 
         if save_intermediate:
             featured_path = "data/processed/featured_data.csv"
@@ -130,7 +132,8 @@ class DataPipeline:
         data = data[valid_rows]
 
         removed_rows = initial_rows - len(data)
-        logger.info(f"Removed {removed_rows} rows with excessive missing values")
+        logger.info(
+            f"Removed {removed_rows} rows with excessive missing values")
 
         # Fill remaining missing values
         for col in feature_cols:
@@ -140,14 +143,17 @@ class DataPipeline:
                     data[col] = data[col].fillna(data[col].median())
                 else:
                     # Fill categorical columns with mode
-                    data[col] = data[col].fillna(data[col].mode().iloc[0] if not data[col].mode().empty else 0)
+                    data[col] = data[col].fillna(
+                        data[col].mode().iloc[0] if not data[col].mode().empty else 0)
 
         # Remove infinite values
         for col in feature_cols:
             if data[col].dtype in ['float64', 'int64']:
-                data[col] = data[col].replace([float('inf'), float('-inf')], data[col].median())
+                data[col] = data[col].replace(
+                    [float('inf'), float('-inf')], data[col].median())
 
-        logger.info(f"Final dataset: {len(data)} rows, {len(feature_cols)} features")
+        logger.info(
+            f"Final dataset: {len(data)} rows, {len(feature_cols)} features")
 
         # Data quality summary
         label_distribution = data['label'].value_counts().sort_index()
@@ -185,7 +191,8 @@ class DataPipeline:
         val_data = data.iloc[train_end:val_end]
         test_data = data.iloc[val_end:]
 
-        logger.info(f"Data split - Train: {len(train_data)}, Val: {len(val_data)}, Test: {len(test_data)}")
+        logger.info(
+            f"Data split - Train: {len(train_data)}, Val: {len(val_data)}, Test: {len(test_data)}")
 
         # Save splits
         splits_dir = Path("data/final")
@@ -203,8 +210,8 @@ class DataPipeline:
 def run_data_pipeline(
     username: str,
     password: str,
-    data_config_path: str = "config/data_config.yaml",
-    labeling_config_path: str = "config/labeling_config.yaml"
+    data_config_path: str = "config/data_config_15m.yaml",
+    labeling_config_path: str = "config/labeling_config_15m.yaml"
 ) -> pd.DataFrame:
     """Run data pipeline with configuration files
 
@@ -218,8 +225,8 @@ def run_data_pipeline(
         Processed dataset
     """
     # Load configurations
-    data_config = config_loader.load_config("data_config")
-    labeling_config = config_loader.load_config("labeling_config")
+    data_config = config_loader.load_config("data_config_15m")
+    labeling_config = config_loader.load_config("labeling_config_15m")
 
     # Combine configs
     combined_config = {**data_config, **labeling_config}
@@ -231,7 +238,8 @@ def run_data_pipeline(
     final_data = pipeline.run_data_pipeline(combined_config)
 
     # Split data
-    train_data, val_data, test_data = pipeline.split_data(final_data, combined_config)
+    train_data, val_data, test_data = pipeline.split_data(
+        final_data, combined_config)
 
     return final_data
 
@@ -244,7 +252,8 @@ if __name__ == "__main__":
     password = os.getenv("FIIN_PASSWORD", "YOUR_PASSWORD")
 
     if username == "YOUR_USERNAME":
-        logger.error("Please set FIIN_USERNAME and FIIN_PASSWORD environment variables")
+        logger.error(
+            "Please set FIIN_USERNAME and FIIN_PASSWORD environment variables")
     else:
         final_data = run_data_pipeline(username, password)
         logger.info(f"Pipeline completed with {len(final_data)} samples")

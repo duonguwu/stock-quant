@@ -6,7 +6,10 @@ from typing import Optional, Dict, Any
 from loguru import logger
 
 
-def rolling_volatility(close: pd.Series, window: int = 20, method: str = 'std') -> pd.Series:
+def rolling_volatility(
+        close: pd.Series,
+        window: int = 20,
+        method: str = 'std') -> pd.Series:
     """Calculate rolling volatility for barrier scaling
 
     Args:
@@ -19,7 +22,7 @@ def rolling_volatility(close: pd.Series, window: int = 20, method: str = 'std') 
     """
     if method == 'std':
         returns = close.pct_change()
-        vol = returns.rolling(window, min_periods=window//2).std()
+        vol = returns.rolling(window, min_periods=window // 2).std()
         # Replace inf and extremely large values with NaN
         vol = vol.replace([np.inf, -np.inf], np.nan)
         return vol
@@ -47,7 +50,7 @@ def event_driven_labels(
         df: DataFrame with OHLC data
         N: Vertical barrier (maximum holding days)
         tp_pct: Fixed take profit percentage
-        sl_pct: Fixed stop loss percentage  
+        sl_pct: Fixed stop loss percentage
         tp_k: Take profit volatility multiplier
         sl_k: Stop loss volatility multiplier
         vol: Volatility series
@@ -153,7 +156,7 @@ def event_driven_labels(
 
             if touch_dn and not touch_up:
                 labels[i] = -1
-                hit_type[i] = 'sl' 
+                hit_type[i] = 'sl'
                 hit_time[i] = idx[j]
                 decided = True
                 break
@@ -234,8 +237,10 @@ def apply_triple_barrier_labeling(
     barriers = labeling_config.get('barriers', {})
     tp_pct = barriers.get('tp_pct')
     sl_pct = barriers.get('sl_pct')
-    tp_k = float(barriers.get('tp_k', 2.0)) if barriers.get('tp_k') is not None else None
-    sl_k = float(barriers.get('sl_k', 1.0)) if barriers.get('sl_k') is not None else None
+    tp_k = float(barriers.get('tp_k', 2.0)) if barriers.get(
+        'tp_k') is not None else None
+    sl_k = float(barriers.get('sl_k', 1.0)) if barriers.get(
+        'sl_k') is not None else None
 
     vol_config = labeling_config.get('volatility', {})
     vol_window = int(vol_config.get('window', 20))
@@ -273,7 +278,8 @@ def apply_triple_barrier_labeling(
             return df.join(labels)
         except Exception as e:
             logger.error(f"❌ Failed to label ticker {ticker}: {e}")
-            logger.error(f"Debug info - df shape: {df.shape}, N: {N}, vol_window: {vol_window}")
+            logger.error(
+                f"Debug info - df shape: {df.shape}, N: {N}, vol_window: {vol_window}")
             logger.error(f"Parameters - tp_k: {tp_k}, sl_k: {sl_k}")
             import traceback
             logger.error(f"Full traceback: {traceback.format_exc()}")
@@ -282,7 +288,8 @@ def apply_triple_barrier_labeling(
     if 'ticker' in data.columns:
         # Group by ticker and apply labeling
         logger.info("Applying triple-barrier labeling by ticker...")
-        result = data.groupby('ticker', group_keys=False).apply(apply_labeling_to_ticker)
+        result = data.groupby('ticker', group_keys=False).apply(
+            apply_labeling_to_ticker)
     else:
         # Single ticker data
         logger.info("Applying triple-barrier labeling to single ticker...")
@@ -292,7 +299,7 @@ def apply_triple_barrier_labeling(
             N=int(N),
             tp_pct=tp_pct,
             sl_pct=sl_pct,
-            tp_k=tp_k, 
+            tp_k=tp_k,
             sl_k=sl_k,
             vol=vol,
             vol_is_pct=vol_is_pct,
@@ -310,7 +317,8 @@ def apply_triple_barrier_labeling(
         logger.info("Label distribution:")
         for label, count in label_counts.items():
             pct = count / total * 100 if total > 0 else 0
-            label_name = {-1: 'Sell', 0: 'Hold', 1: 'Buy'}.get(label, str(label))
+            label_name = {-1: 'Sell', 0: 'Hold',
+                          1: 'Buy'}.get(label, str(label))
             logger.info(f"  {label_name} ({label}): {count} ({pct:.1f}%)")
 
     return result
@@ -370,9 +378,12 @@ def analyze_labeling_quality(
         for label_name, expected_pct in expected_dist.items():
             label_map = {'sell': -1, 'hold': 0, 'buy': 1}
             label_val = label_map.get(label_name, 0)
-            actual_pct = distribution.get(label_val, {}).get('percentage', 0) / 100
+            actual_pct = distribution.get(
+                label_val, {}).get(
+                'percentage', 0) / 100
             balance_score += abs(expected_pct - actual_pct)
 
-        quality_metrics['balance_score'] = float(balance_score / len(expected_dist))
+        quality_metrics['balance_score'] = float(
+            balance_score / len(expected_dist))
 
     return quality_metrics

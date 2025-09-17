@@ -30,8 +30,9 @@ class TrainingPipeline:
         logger.info("Setting up training pipeline...")
         self.trainer = create_xgboost_trainer(self.config)
         logger.info("Training pipeline setup completed")
-    
-    def load_data_splits(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+
+    def load_data_splits(
+            self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """Load train/validation/test data splits
 
         Returns:
@@ -43,7 +44,8 @@ class TrainingPipeline:
         val_data = pd.read_csv(data_dir / "val_data.csv")
         test_data = pd.read_csv(data_dir / "test_data.csv")
 
-        logger.info(f"Loaded data - Train: {len(train_data)}, Val: {len(val_data)}, Test: {len(test_data)}")
+        logger.info(
+            f"Loaded data - Train: {len(train_data)}, Val: {len(val_data)}, Test: {len(test_data)}")
 
         return train_data, val_data, test_data
 
@@ -80,7 +82,7 @@ class TrainingPipeline:
         logger.info(f"Feature columns: {len(feature_cols)}")
 
         return X, y
- 
+
     def run_training_pipeline(self) -> Dict[str, Any]:
         """Run complete training pipeline
 
@@ -105,9 +107,12 @@ class TrainingPipeline:
         feature_names = X_train.columns.tolist()
 
         # Prepare training data
-        X_train_scaled, y_train_encoded = self.trainer.prepare_data(X_train, y_train, scale_features=True)
-        X_val_scaled, y_val_encoded = self.trainer.prepare_data(X_val, y_val, scale_features=True)
-        X_test_scaled, y_test_encoded = self.trainer.prepare_data(X_test, y_test, scale_features=True)
+        X_train_scaled, y_train_encoded = self.trainer.prepare_data(
+            X_train, y_train, scale_features=True)
+        X_val_scaled, y_val_encoded = self.trainer.prepare_data(
+            X_val, y_val, scale_features=True)
+        X_test_scaled, y_test_encoded = self.trainer.prepare_data(
+            X_test, y_test, scale_features=True)
 
         # Calculate sample weights for class balancing
         sample_weights = self.trainer.calculate_sample_weights(y_train_encoded)
@@ -122,8 +127,10 @@ class TrainingPipeline:
             cv_splits = create_time_series_splits(combined_data, self.config)
 
             # Prepare combined data for optimization
-            X_combined, y_combined = self.prepare_features_and_labels(combined_data)
-            X_combined_scaled, y_combined_encoded = self.trainer.prepare_data(X_combined, y_combined)
+            X_combined, y_combined = self.prepare_features_and_labels(
+                combined_data)
+            X_combined_scaled, y_combined_encoded = self.trainer.prepare_data(
+                X_combined, y_combined)
 
             # Run optimization
             best_params = self.trainer.hyperparameter_optimization(
@@ -157,8 +164,10 @@ class TrainingPipeline:
         # Save model
         model_config = self.config.get('model', {}).get('persistence', {})
         if model_config.get('save_model', True):
-            model_path = model_config.get('model_path', 'models/xgboost_model.pkl')
-            scaler_path = model_config.get('scaler_path', 'models/feature_scaler.pkl')
+            model_path = model_config.get(
+                'model_path', 'models/xgboost_model.pkl')
+            scaler_path = model_config.get(
+                'scaler_path', 'models/feature_scaler.pkl')
 
             self.trainer.save_model(model_path, scaler_path)
 
@@ -211,7 +220,8 @@ class TrainingPipeline:
 
         # Save feature importance
         if self.results['evaluation']['feature_importance']:
-            importance_df = pd.DataFrame(self.results['evaluation']['feature_importance'])
+            importance_df = pd.DataFrame(
+                self.results['evaluation']['feature_importance'])
             importance_path = results_dir / "feature_importance.csv"
             importance_df.to_csv(importance_path, index=False)
             logger.info(f"Feature importance saved to {importance_path}")
@@ -226,13 +236,13 @@ class TrainingPipeline:
             raise ValueError("Model not trained yet")
 
         feature_names = self.results.get('feature_names', [])
-        
+
         def predict(data: pd.DataFrame) -> Dict[str, np.ndarray]:
             """Make predictions on new data
 
             Args:
                 data: DataFrame with features
-     
+
             Returns:
                 Predictions dictionary
             """
@@ -241,8 +251,17 @@ class TrainingPipeline:
                 data_features = data[feature_names]
             else:
                 # Fallback: use all columns except known non-features
-                exclude_cols = ['ticker', 'timestamp', 'label', 'hit_time', 'hit_type', 'ub', 'lb', 'vbar_end']
-                feature_cols = [col for col in data.columns if col not in exclude_cols]
+                exclude_cols = [
+                    'ticker',
+                    'timestamp',
+                    'label',
+                    'hit_time',
+                    'hit_type',
+                    'ub',
+                    'lb',
+                    'vbar_end']
+                feature_cols = [
+                    col for col in data.columns if col not in exclude_cols]
                 data_features = data[feature_cols]
 
             return self.trainer.predict(data_features)
@@ -250,7 +269,8 @@ class TrainingPipeline:
         return predict
 
 
-def run_training_pipeline(config_path: str = "config/model_config.yaml") -> Dict[str, Any]:
+def run_training_pipeline(
+        config_path: str = "config/model_config.yaml") -> Dict[str, Any]:
     """Run training pipeline with configuration
 
     Args:

@@ -71,7 +71,13 @@ def run_complete_pipeline(
     logger.info("=" * 60)
 
     # Create directories
-    for directory in ["data/raw", "data/processed", "data/final", "models", "results", "logs"]:
+    for directory in [
+        "data/raw",
+        "data/processed",
+        "data/final",
+        "models",
+        "results",
+            "logs"]:
         Path(directory).mkdir(parents=True, exist_ok=True)
 
     try:
@@ -82,7 +88,8 @@ def run_complete_pipeline(
 
             final_data = run_data_pipeline(username, password)
 
-            logger.info(f"✅ Data pipeline completed with {len(final_data)} samples")
+            logger.info(
+                f"✅ Data pipeline completed with {len(final_data)} samples")
 
             if data_only:
                 logger.info("Data-only mode: stopping after data pipeline")
@@ -103,8 +110,10 @@ def run_complete_pipeline(
         # Feature importance (top 10)
         if results['evaluation']['feature_importance']:
             logger.info("🎯 Top 10 Important Features:")
-            for i, feat in enumerate(results['evaluation']['feature_importance'][:10]):
-                logger.info(f"  {i+1:2d}. {feat['feature']}: {feat['importance']:.4f}")
+            for i, feat in enumerate(
+                    results['evaluation']['feature_importance'][:10]):
+                logger.info(
+                    f"  {i+1:2d}. {feat['feature']}: {feat['importance']:.4f}")
 
         logger.info("=" * 60)
         logger.info("✨ Pipeline completed successfully!")

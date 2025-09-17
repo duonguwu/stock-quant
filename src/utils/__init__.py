@@ -1,1 +1,1 @@
-"""Utility functions and classes""" 
+"""Utility functions and classes"""

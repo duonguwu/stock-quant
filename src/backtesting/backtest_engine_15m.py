@@ -65,7 +65,9 @@ class BacktestResults15m:
     benchmark_df: Optional[pd.DataFrame] = None
 
 
-def get_benchmark_returns_from_fiin_15m(start_date: str, end_date: str) -> pd.DataFrame:
+def get_benchmark_returns_from_fiin_15m(
+        start_date: str,
+        end_date: str) -> pd.DataFrame:
     """Fetch VNINDEX 15m returns from FiinQuantX between specified dates."""
     load_dotenv()
 
@@ -86,7 +88,7 @@ def get_benchmark_returns_from_fiin_15m(start_date: str, end_date: str) -> pd.Da
             to_date=end_date
         )
         benchmark_df = event.get_data()
-    except:
+    except BaseException:
         # Fallback to daily data
         logger.warning("15m VNINDEX data not available, using daily data")
         event = client.Fetch_Trading_Data(
@@ -111,7 +113,7 @@ class BacktestEngine15m:
 
     def __init__(self, model_path: str, scaler_path: str):
         """Initialize backtest engine for 15m
-        
+
         Args:
             model_path: Path to trained 15m model
             scaler_path: Path to 15m feature scaler
@@ -124,10 +126,10 @@ class BacktestEngine15m:
 
     def prepare_features(self, data: pd.DataFrame) -> pd.DataFrame:
         """Prepare features for 15m prediction
-        
+
         Args:
             data: Raw 15m data with all columns
-            
+
         Returns:
             Scaled features DataFrame
         """
@@ -154,11 +156,11 @@ class BacktestEngine15m:
         self, data: pd.DataFrame, confidence_threshold: float = 0.65
     ) -> pd.DataFrame:
         """Generate trading signals from 15m model predictions
-        
+
         Args:
             data: Input 15m data with features
             confidence_threshold: Minimum confidence for signal generation
-            
+
         Returns:
             DataFrame with signals and confidence
         """
@@ -207,13 +209,13 @@ class BacktestEngine15m:
         transaction_cost: float = 0.0005,  # Reduced for 15m
     ) -> List[Trade15m]:
         """Simulate 15m trading based on signals
-        
+
         Args:
             data: 15m price data
             signals: Trading signals
             holding_period_bars: Maximum holding period in 15m bars
             transaction_cost: Transaction cost as percentage
-            
+
         Returns:
             List of executed trades
         """
@@ -312,7 +314,7 @@ class BacktestEngine15m:
             last_price = data.iloc[-1]['close'] * (1 - transaction_cost)
             bars_held = len(data) - entry_idx - 1
             holding_days = bars_held / self.bars_per_day
-            
+
             trade = Trade15m(
                 entry_date=entry_date,
                 exit_date=data.iloc[-1]['timestamp'],
@@ -337,13 +339,13 @@ class BacktestEngine15m:
         benchmark_ticker: str = "^VNI",
     ) -> BacktestResults15m:
         """Calculate comprehensive performance metrics for 15m
-        
+
         Args:
             trades: List of executed 15m trades
             start_date: Strategy start date
             end_date: Strategy end date
             benchmark_ticker: Benchmark ticker symbol
-            
+
         Returns:
             BacktestResults15m with all metrics
         """
@@ -375,9 +377,11 @@ class BacktestEngine15m:
         # 15m specific metrics
         avg_holding_bars = trades_df['holding_bars'].mean()
         avg_holding_days = trades_df['holding_days'].mean()
-        
+
         # Calculate trades per day
-        period_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+        period_days = (
+            pd.to_datetime(end_date) -
+            pd.to_datetime(start_date)).days
         trades_per_day = len(trades) / period_days if period_days > 0 else 0
 
         # Annualized metrics (adjusted for 15m)
@@ -385,14 +389,14 @@ class BacktestEngine15m:
         annualized_return = (
             (1 + total_return) ** (1 / years) - 1 if years > 0 else 0
         )
-        
+
         # Volatility calculation for 15m (252 trading days * 18 bars per day)
         volatility = (
             np.std(strategy_returns) * np.sqrt(252 * self.bars_per_day)
             if len(strategy_returns) > 1
             else 0
         )
-        
+
         sharpe_ratio = (
             annualized_return / volatility if volatility > 0 else 0
         )
@@ -426,7 +430,8 @@ class BacktestEngine15m:
         )
 
         # Benchmark comparison
-        benchmark_df = get_benchmark_returns_from_fiin_15m(start_date, end_date)
+        benchmark_df = get_benchmark_returns_from_fiin_15m(
+            start_date, end_date)
         benchmark_return, beta, alpha = self._calculate_benchmark_metrics_15m(
             strategy_returns, start_date, end_date, benchmark_df
         )
@@ -478,7 +483,7 @@ class BacktestEngine15m:
 
         # For 15m data, we might need to aggregate or align differently
         if len(benchmark_r) != len(strategy_returns):
-            # If benchmark is daily and strategy is 15m, 
+            # If benchmark is daily and strategy is 15m,
             # we need to align them properly
             min_len = min(len(strategy_returns), len(benchmark_r))
             strategy_aligned = strategy_returns[:min_len]
@@ -518,7 +523,8 @@ class BacktestEngine15m:
 
         return equity_curve.reset_index(drop=True)
 
-    def _create_drawdown_curve(self, equity_curve: pd.DataFrame) -> pd.DataFrame:
+    def _create_drawdown_curve(
+            self, equity_curve: pd.DataFrame) -> pd.DataFrame:
         """Create drawdown curve from equity curve"""
         running_max = equity_curve['equity'].expanding().max()
         drawdown = (equity_curve['equity'] - running_max) / running_max
@@ -564,14 +570,14 @@ class BacktestEngine15m:
         benchmark_ticker: str = "^VNI",
     ) -> BacktestResults15m:
         """Run complete 15m backtest
-        
+
         Args:
             test_data: Test dataset with all 15m features
             confidence_threshold: Minimum confidence for signal generation
             holding_period_bars: Maximum holding period in 15m bars
             transaction_cost: Transaction cost as percentage
             benchmark_ticker: Benchmark for comparison
-            
+
         Returns:
             BacktestResults15m object with all metrics
         """
@@ -599,19 +605,22 @@ class BacktestEngine15m:
         )
 
         logger.info("15m backtest completed successfully")
-        logger.info(f"15m metrics - Avg holding: {results.avg_holding_days:.2f} days, "
-                   f"Trades per day: {results.trades_per_day:.2f}")
+        logger.info(
+            f"15m metrics - Avg holding: {results.avg_holding_days:.2f} days, "
+            f"Trades per day: {results.trades_per_day:.2f}")
         return results
 
 
-def create_backtest_engine_15m(model_path: str, scaler_path: str) -> BacktestEngine15m:
+def create_backtest_engine_15m(
+        model_path: str,
+        scaler_path: str) -> BacktestEngine15m:
     """Create BacktestEngine15m instance
-    
+
     Args:
         model_path: Path to trained 15m model
         scaler_path: Path to 15m feature scaler
-        
+
     Returns:
         BacktestEngine15m instance
     """
-    return BacktestEngine15m(model_path, scaler_path) 
+    return BacktestEngine15m(model_path, scaler_path)

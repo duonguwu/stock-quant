@@ -14,16 +14,16 @@ logger = logging.getLogger(__name__)
 
 class PortfolioTracker:
     """Simple portfolio tracker for demo"""
-    
+
     def __init__(self):
         self.settings = get_settings()
-        
+
     async def update(self, signals: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Update portfolio with new signals (demo implementation)"""
         try:
             if not signals:
                 return {"status": "no_signals"}
-            
+
             # Simple demo portfolio update
             portfolio_data = {
                 "signals_processed": len(signals),
@@ -33,17 +33,17 @@ class PortfolioTracker:
                 "last_update": datetime.now().isoformat(),
                 "status": "updated"
             }
-            
+
             # Save to database
             await mongodb_service.save_portfolio_snapshot("demo", portfolio_data)
-            
+
             logger.info(f"📊 Portfolio updated with {len(signals)} signals")
             return portfolio_data
-            
+
         except Exception as e:
             logger.error(f"❌ Error updating portfolio: {e}")
             return {"status": "error", "message": str(e)}
-    
+
     async def get_summary(self) -> Dict[str, Any]:
         """Get portfolio summary"""
         try:

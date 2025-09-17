@@ -59,7 +59,9 @@ class BacktestResults:
     benchmark_df: Optional[pd.DataFrame] = None
 
 
-def get_benchmark_returns_from_fiin(start_date: str, end_date: str) -> pd.DataFrame:
+def get_benchmark_returns_from_fiin(
+        start_date: str,
+        end_date: str) -> pd.DataFrame:
     """Fetch VNINDEX daily returns from FiinQuantX between specified dates."""
     load_dotenv()
 
@@ -397,7 +399,10 @@ class BacktestEngine:
         print("Benchmark fetch period:", start_date, "to", end_date)
         print("benchmark_df.shape:", benchmark_df.shape)
         if not benchmark_df.empty:
-            print("benchmark_df.index:", benchmark_df.index[0], "to", benchmark_df.index[-1])
+            print("benchmark_df.index:",
+                  benchmark_df.index[0],
+                  "to",
+                  benchmark_df.index[-1])
             print("benchmark_df['close'] head:", benchmark_df['close'].head(3))
             print("benchmark_df['close'] tail:", benchmark_df['close'].tail(3))
 
@@ -449,8 +454,10 @@ class BacktestEngine:
         # Lấy return, loại bỏ NaN
         benchmark_r = benchmark_returns['return'].dropna().values
         print("Length of benchmark_r (after dropna):", len(benchmark_r))
-        print("First 5 benchmark returns:", benchmark_returns['return'].head(5).values)
-        print("Last 5 benchmark returns:", benchmark_returns['return'].tail(5).values)
+        print("First 5 benchmark returns:",
+              benchmark_returns['return'].head(5).values)
+        print("Last 5 benchmark returns:",
+              benchmark_returns['return'].tail(5).values)
 
         print("Length of strategy_returns:", len(strategy_returns))
         print("First 5 strategy returns:", strategy_returns[:5])
@@ -465,7 +472,6 @@ class BacktestEngine:
         # Tổng return benchmark
         benchmark_total_return = (1 + benchmark_r).prod() - 1
         print("Benchmark total return (calculated):", benchmark_total_return)
-
 
         # Tính beta và alpha
         if len(strategy_aligned) > 1 and len(benchmark_aligned) > 1:
@@ -495,7 +501,8 @@ class BacktestEngine:
 
         return equity_curve.reset_index(drop=True)
 
-    def _create_drawdown_curve(self, equity_curve: pd.DataFrame) -> pd.DataFrame:
+    def _create_drawdown_curve(
+            self, equity_curve: pd.DataFrame) -> pd.DataFrame:
         """Create drawdown curve from equity curve"""
         running_max = equity_curve['equity'].expanding().max()
         drawdown = (equity_curve['equity'] - running_max) / running_max
@@ -579,7 +586,9 @@ class BacktestEngine:
         return results
 
 
-def create_backtest_engine(model_path: str, scaler_path: str) -> BacktestEngine:
+def create_backtest_engine(
+        model_path: str,
+        scaler_path: str) -> BacktestEngine:
     """Create BacktestEngine instance
 
     Args:

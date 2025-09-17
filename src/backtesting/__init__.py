@@ -1,1 +1,1 @@
-"""Backtesting and strategy evaluation modules""" 
+"""Backtesting and strategy evaluation modules"""

@@ -17,7 +17,7 @@ class BacktestRunner15m:
     def __init__(self, model_path: str = "models/xgboost_model_15m.pkl",
                  scaler_path: str = "models/feature_scaler_15m.pkl"):
         """Initialize 15m backtest runner
-        
+
         Args:
             model_path: Path to trained 15m model
             scaler_path: Path to 15m feature scaler
@@ -36,14 +36,14 @@ class BacktestRunner15m:
         benchmark_ticker: str = "^VNI"
     ) -> BacktestResults15m:
         """Run 15m backtest on test data
-        
+
         Args:
             test_data_path: Path to 15m test data CSV
             confidence_threshold: Minimum confidence for trades
             holding_period_bars: Maximum holding period in 15m bars
             transaction_cost: Transaction cost percentage (lower for 15m)
             benchmark_ticker: Benchmark ticker
-            
+
         Returns:
             BacktestResults15m object
         """
@@ -74,9 +74,11 @@ class BacktestRunner15m:
         logger.info(f"Total 15m trades: {sum(cnt.values())}")
         return self.results
 
-    def generate_report(self, output_dir: str = "results/backtest_15m") -> None:
+    def generate_report(
+            self,
+            output_dir: str = "results/backtest_15m") -> None:
         """Generate comprehensive 15m backtest report
-        
+
         Args:
             output_dir: Directory to save 15m report files
         """
@@ -271,8 +273,12 @@ class BacktestRunner15m:
         plt.title('Holding Period Distribution')
         plt.xlabel('Days Held')
         plt.ylabel('Frequency')
-        plt.axvline(x=np.mean(holding_days), color='red', 
-                   linestyle='--', alpha=0.7, label=f'Avg: {np.mean(holding_days):.1f}d')
+        plt.axvline(
+            x=np.mean(holding_days),
+            color='red',
+            linestyle='--',
+            alpha=0.7,
+            label=f'Avg: {np.mean(holding_days):.1f}d')
         plt.legend()
 
         # 5. Hourly Performance Pattern
@@ -292,9 +298,15 @@ class BacktestRunner15m:
         for trade in self.results.trades:
             hour = pd.to_datetime(trade.entry_date).hour
             trade_hours.append(hour)
-        
+
         if trade_hours:
-            plt.hist(trade_hours, bins=range(9, 16), alpha=0.7, edgecolor='black')
+            plt.hist(
+                trade_hours,
+                bins=range(
+                    9,
+                    16),
+                alpha=0.7,
+                edgecolor='black')
             plt.title('Trades by Hour')
             plt.xlabel('Hour of Day')
             plt.ylabel('Number of Trades')
@@ -318,7 +330,7 @@ class BacktestRunner15m:
         plt.subplot(2, 4, 8)
         confidence_vals = [t.confidence for t in self.results.trades]
         returns_vals = [t.return_pct for t in self.results.trades]
-        
+
         if confidence_vals and returns_vals:
             plt.scatter(confidence_vals, returns_vals, alpha=0.6)
             plt.title('Confidence vs Return (15m)')
@@ -328,15 +340,18 @@ class BacktestRunner15m:
 
         plt.tight_layout()
         plt.savefig(
-            output_path / "backtest_charts_15m.png", dpi=300, bbox_inches='tight'
-        )
+            output_path /
+            "backtest_charts_15m.png",
+            dpi=300,
+            bbox_inches='tight')
         plt.close()
-        
+
         # Plot portfolio vs benchmark chart
         self._plot_portfolio_vs_benchmark_chart_15m(output_path)
         logger.info("15m charts saved successfully")
 
-    def _plot_portfolio_vs_benchmark_chart_15m(self, output_path: Path) -> None:
+    def _plot_portfolio_vs_benchmark_chart_15m(
+            self, output_path: Path) -> None:
         """Plot Portfolio vs VNINDEX performance chart for 15m"""
         if self.results is None or self.results.equity_curve.empty:
             logger.warning("No equity curve available for 15m")
@@ -347,10 +362,13 @@ class BacktestRunner15m:
         eq_curve = eq_curve.set_index('date')
 
         # Portfolio performance
-        portfolio_perf = (eq_curve['equity'] / eq_curve['equity'].iloc[0] - 1.0) * 100
+        portfolio_perf = (
+            eq_curve['equity'] / eq_curve['equity'].iloc[0] - 1.0) * 100
 
         # Benchmark performance (if available)
-        if hasattr(self.results, "benchmark_df") and self.results.benchmark_df is not None:
+        if hasattr(
+                self.results,
+                "benchmark_df") and self.results.benchmark_df is not None:
             idx = self.results.benchmark_df.copy()
             idx.index = pd.to_datetime(idx.index)
             idx_perf = (idx['close'] / idx['close'].iloc[0] - 1.0) * 100
@@ -364,39 +382,48 @@ class BacktestRunner15m:
 
         # Plot
         plt.figure(figsize=(14, 8))
-        plt.plot(portfolio_perf.index, portfolio_perf, 
-                label="15m Portfolio", linewidth=2, color='blue')
-        
+        plt.plot(portfolio_perf.index, portfolio_perf,
+                 label="15m Portfolio", linewidth=2, color='blue')
+
         if idx_perf is not None:
-            plt.plot(idx_perf.index, idx_perf, 
-                    label="VNINDEX", linewidth=2, color="orange")
+            plt.plot(idx_perf.index, idx_perf,
+                     label="VNINDEX", linewidth=2, color="orange")
 
         plt.title("15m Portfolio vs VNINDEX Performance")
         plt.ylabel("Cumulative Return (%)")
         plt.xlabel("Date")
         plt.legend()
         plt.grid(True, linestyle="--", alpha=0.4)
-        
+
         # Add performance stats
-        final_portfolio = portfolio_perf.iloc[-1] if len(portfolio_perf) > 0 else 0
-        final_benchmark = idx_perf.iloc[-1] if idx_perf is not None and len(idx_perf) > 0 else 0
-        
-        plt.text(0.02, 0.98, 
-                f'Portfolio: {final_portfolio:.1f}%\nBenchmark: {final_benchmark:.1f}%\nOutperformance: {final_portfolio - final_benchmark:.1f}%',
-                transform=plt.gca().transAxes, verticalalignment='top',
-                bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
-        
+        final_portfolio = portfolio_perf.iloc[-1] if len(
+            portfolio_perf) > 0 else 0
+        final_benchmark = idx_perf.iloc[-1] if idx_perf is not None and len(
+            idx_perf) > 0 else 0
+
+        plt.text(
+            0.02,
+            0.98,
+            f'Portfolio: {final_portfolio:.1f}%\nBenchmark: {final_benchmark:.1f}%\nOutperformance: {final_portfolio - final_benchmark:.1f}%',
+            transform=plt.gca().transAxes,
+            verticalalignment='top',
+            bbox=dict(
+                boxstyle='round',
+                facecolor='wheat',
+                alpha=0.8))
+
         plt.tight_layout()
 
         # Save chart
-        plt.savefig(output_path / "portfolio_vs_vnindex_15m.png", 
-                   dpi=300, bbox_inches="tight")
+        plt.savefig(output_path / "portfolio_vs_vnindex_15m.png",
+                    dpi=300, bbox_inches="tight")
         plt.close()
 
     def _generate_price_charts_15m(self, output_path: Path) -> None:
         """Generate 15m price charts with signals for each ticker"""
         if self.test_data is None or self.signals is None:
-            logger.warning("No test data or signals available for 15m price charts")
+            logger.warning(
+                "No test data or signals available for 15m price charts")
             return
 
         # Create directory for price charts
@@ -414,7 +441,8 @@ class BacktestRunner15m:
 
         logger.info(f"15m price charts saved to {price_charts_dir}")
 
-    def _plot_ticker_price_chart_15m(self, ticker: str, output_dir: Path) -> None:
+    def _plot_ticker_price_chart_15m(
+            self, ticker: str, output_dir: Path) -> None:
         """Plot 15m price chart with signals for a specific ticker"""
         # Filter data for this ticker
         ticker_data = self.test_data[self.test_data['ticker'] == ticker].copy()
@@ -428,7 +456,7 @@ class BacktestRunner15m:
             2, 1, figsize=(16, 12), height_ratios=[3, 1]
         )
         ax1.set_title(
-            f'{ticker} - 15m Executed Trades (n={len(ticker_trades)})', 
+            f'{ticker} - 15m Executed Trades (n={len(ticker_trades)})',
             fontsize=14
         )
 
@@ -449,7 +477,7 @@ class BacktestRunner15m:
             )
             buy_prices = ticker_data.loc[buy_signals.index, 'close']
             ax1.scatter(buy_dates, buy_prices, color='green', marker='^',
-                       s=80, label='Buy Signal', zorder=5, alpha=0.7)
+                        s=80, label='Buy Signal', zorder=5, alpha=0.7)
 
         if not sell_signals.empty:
             sell_dates = pd.to_datetime(
@@ -457,7 +485,7 @@ class BacktestRunner15m:
             )
             sell_prices = ticker_data.loc[sell_signals.index, 'close']
             ax1.scatter(sell_dates, sell_prices, color='red', marker='v',
-                       s=80, label='Sell Signal', zorder=5, alpha=0.7)
+                        s=80, label='Sell Signal', zorder=5, alpha=0.7)
 
         # Plot entry/exit points from trades
         for i, trade in enumerate(ticker_trades):
@@ -477,29 +505,29 @@ class BacktestRunner15m:
                 exit_price = ticker_data.loc[exit_idx[0], 'close']
 
                 # Plot entry point
-                ax1.scatter(entry_date, entry_price, color='darkgreen', 
-                           marker='o', s=120, 
-                           label='Entry' if i == 0 else "", 
-                           zorder=6, edgecolor='white', linewidth=2)
+                ax1.scatter(entry_date, entry_price, color='darkgreen',
+                            marker='o', s=120,
+                            label='Entry' if i == 0 else "",
+                            zorder=6, edgecolor='white', linewidth=2)
 
                 # Plot exit point
                 color = 'darkred' if trade.return_pct < 0 else 'darkgreen'
-                ax1.scatter(exit_date, exit_price, color=color, 
-                           marker='x', s=120, 
-                           label='Exit' if i == 0 else "", 
-                           zorder=6, linewidth=3)
+                ax1.scatter(exit_date, exit_price, color=color,
+                            marker='x', s=120,
+                            label='Exit' if i == 0 else "",
+                            zorder=6, linewidth=3)
 
                 # Draw line between entry and exit
-                ax1.plot([entry_date, exit_date], [entry_price, exit_price], 
-                        color=color, alpha=0.6, linewidth=2)
+                ax1.plot([entry_date, exit_date], [entry_price, exit_price],
+                         color=color, alpha=0.6, linewidth=2)
 
                 # Add return text
-                ax1.text(exit_date, exit_price, 
-                        f'{trade.return_pct:.1%}', 
-                        fontsize=8, ha='left', va='bottom')
+                ax1.text(exit_date, exit_price,
+                         f'{trade.return_pct:.1%}',
+                         fontsize=8, ha='left', va='bottom')
 
-        ax1.set_title(f'{ticker} - 15m Price Chart with Signals and Trades', 
-                     fontsize=14)
+        ax1.set_title(f'{ticker} - 15m Price Chart with Signals and Trades',
+                      fontsize=14)
         ax1.set_ylabel('Price (VND)')
         ax1.legend()
         ax1.grid(True, alpha=0.3)
@@ -535,9 +563,9 @@ class BacktestRunner15m:
             hourly_returns[hour].append(trade.return_pct)
 
         # Calculate average return per hour
-        avg_hourly = {hour: np.mean(returns) 
-                     for hour, returns in hourly_returns.items()}
-        
+        avg_hourly = {hour: np.mean(returns)
+                      for hour, returns in hourly_returns.items()}
+
         return pd.Series(avg_hourly).sort_index()
 
     def _save_detailed_data_15m(self, output_path: Path) -> None:
@@ -600,7 +628,8 @@ class BacktestRunner15m:
         print("\n" + "-" * 50)
         print("15m SPECIFIC METRICS")
         print("-" * 50)
-        print(f"⏱️  Avg Holding: {self.results.avg_holding_bars:.1f} bars ({self.results.avg_holding_days:.1f} days)")
+        print(
+            f"⏱️  Avg Holding: {self.results.avg_holding_bars:.1f} bars ({self.results.avg_holding_days:.1f} days)")
         print(f"📊 Trades per Day: {self.results.trades_per_day:.2f}")
         print(f"🔄 Transaction Cost: 0.05% (optimized for 15m)")
         print("=" * 70)
@@ -615,7 +644,7 @@ def run_backtest_analysis_15m(
     output_dir: str = "results/backtest_15m"
 ) -> BacktestResults15m:
     """Run complete 15m backtest analysis
-    
+
     Args:
         model_path: Path to trained 15m model
         scaler_path: Path to 15m feature scaler
@@ -623,7 +652,7 @@ def run_backtest_analysis_15m(
         confidence_threshold: Minimum confidence threshold
         holding_period_bars: Max holding period in 15m bars
         output_dir: Output directory for reports
-        
+
     Returns:
         BacktestResults15m object
     """
@@ -651,4 +680,4 @@ def run_backtest_analysis_15m(
 
 if __name__ == "__main__":
     # Run 15m backtest with default parameters
-    results = run_backtest_analysis_15m() 
+    results = run_backtest_analysis_15m()
