@@ -1,0 +1,92 @@
+# Multi-Strategy Configuration for Real-time Trading
+# Based on backtest performance results
+
+strategies:
+  # Best performer - Main strategy for production
+  best_performer:
+    name: "Best Performer ⭐"
+    confidence_threshold: 0.7
+    holding_period_bars: 72
+    risk_level: "LOW"
+    color: "#FFD700"
+    telegram_alerts: true
+    primary: true
+    description: "Highest Sharpe ratio (39.21) with 3763.83% annualized return"
+    backtest_performance:
+      annualized_return: 3763.83
+      sharpe_ratio: 39.21
+      max_drawdown: -7.17
+      win_rate: 67.83
+      total_trades: 143
+      
+  # Conservative alternative
+  conservative:
+    name: "Conservative"  
+    confidence_threshold: 0.6
+    holding_period_bars: 36
+    risk_level: "MEDIUM"
+    color: "#45B7D1"
+    telegram_alerts: true
+    primary: false
+    description: "Balanced approach with good performance"
+    backtest_performance:
+      annualized_return: 2541.22
+      sharpe_ratio: 28.15
+      max_drawdown: -8.92
+      win_rate: 65.4
+      total_trades: 180
+      
+  # High frequency strategy
+  aggressive:
+    name: "Aggressive"
+    confidence_threshold: 0.4
+    holding_period_bars: 36
+    risk_level: "HIGH"
+    color: "#FF8E53"
+    telegram_alerts: false
+    primary: false
+    description: "High frequency with more trades"
+    backtest_performance:
+      annualized_return: 3098.18
+      sharpe_ratio: 32.25
+      max_drawdown: -10.83
+      win_rate: 66.45
+      total_trades: 155
+      
+  # Ultra conservative for risk-averse users
+  ultra_conservative:
+    name: "Ultra Conservative"
+    confidence_threshold: 0.8
+    holding_period_bars: 72
+    risk_level: "VERY_LOW"
+    color: "#90EE90"
+    telegram_alerts: false
+    primary: false
+    description: "Very high confidence, lower frequency"
+    backtest_performance:
+      annualized_return: 1876.45
+      sharpe_ratio: 25.67
+      max_drawdown: -5.23
+      win_rate: 72.1
+      total_trades: 89
+
+# Risk management settings
+risk_management:
+  max_portfolio_exposure: 0.95
+  max_single_position: 0.15
+  stop_loss_threshold: -0.05
+  daily_loss_limit: -0.10
+  
+# Alert settings
+alerts:
+  min_confidence_for_telegram: 0.65
+  max_alerts_per_hour: 5
+  enable_performance_reports: true
+  daily_summary_time: "17:00"
+  
+# Performance tracking
+tracking:
+  enable_portfolio_simulation: true
+  initial_capital: 1000000000  # 1 billion VND
+  commission_rate: 0.0015
+  slippage_bps: 5 

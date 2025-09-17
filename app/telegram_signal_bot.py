@@ -126,25 +126,38 @@ class TelegramSignalBot:
                                        confidence_threshold: float):
         """Process individual signal for Telegram"""
         try:
+            logger.info(f"🔍 Processing signal: {signal}")
+            
             # Check if should send alert
-            if not self._should_send_alert(signal):
+            should_send = self._should_send_alert(signal)
+            logger.info(f"🔍 Should send alert: {should_send}")
+            if not should_send:
                 return
                 
             # Check rate limiting
-            if not self._check_rate_limit(signal):
+            rate_ok = self._check_rate_limit(signal)
+            logger.info(f"🔍 Rate limit OK: {rate_ok}")
+            if not rate_ok:
                 return
                 
             # Format and send message
+            logger.info(f"🔍 Formatting message...")
             message = self._format_signal_message(signal, confidence_threshold)
+            logger.info(f"🔍 Sending message: {message[:100]}...")
             success = await self._send_message(message)
+            logger.info(f"🔍 Send result: {success}")
             
             if success:
                 self._update_rate_limit(signal)
                 self.daily_alert_count += 1
                 logger.info(f"📤 Telegram alert sent: {signal['ticker']} {signal['action']}")
+            else:
+                logger.error(f"❌ Failed to send Telegram message")
                 
         except Exception as e:
             logger.error(f"❌ Error processing individual signal: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             
     def _should_send_alert(self, signal: Dict) -> bool:
         """Check if signal meets alert criteria"""
@@ -263,17 +276,30 @@ class TelegramSignalBot:
                 "parse_mode": "HTML"
             }
             
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=payload, timeout=10) as response:
+            logger.info(f"🔍 Making request to: {url}")
+            logger.info(f"🔍 Payload: {payload}")
+            
+            timeout = aiohttp.ClientTimeout(total=30)  # Increase timeout
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                logger.info("🔍 Creating HTTP session...")
+                async with session.post(url, json=payload) as response:
+                    logger.info(f"🔍 Response status: {response.status}")
                     if response.status == 200:
+                        response_text = await response.text()
+                        logger.info(f"✅ Telegram success: {response_text[:100]}...")
                         return True
                     else:
                         error_text = await response.text()
                         logger.error(f"❌ Telegram API error: {response.status} - {error_text}")
                         return False
                         
+        except asyncio.TimeoutError:
+            logger.error("❌ Telegram request timeout (30s)")
+            return False
         except Exception as e:
             logger.error(f"❌ Error sending Telegram message: {e}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             return False
             
     async def send_startup_message(self):

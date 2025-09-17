@@ -95,7 +95,7 @@ class RealModelInference:
         # Match exactly with backtest engine exclude list
         exclude_cols = [
             'ticker', 'timestamp', 'label', 'hit_time', 'hit_type',
-            'ub', 'lb', 'vbar_end'
+            'ub', 'lb', 'vbar_end', 'change_pct'
         ]
         
         feature_cols = [col for col in data.columns if col not in exclude_cols]

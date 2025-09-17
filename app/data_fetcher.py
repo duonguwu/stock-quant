@@ -2,13 +2,11 @@
 Real Data Fetcher for Trading Signals
 Chỉ lấy dữ liệu thật từ FiinQuantX API - Không mock data
 """
-
+import threading
 import pandas as pd
-import numpy as np
 from datetime import datetime, timedelta
-from typing import List, Dict, Callable, Optional
+from typing import List, Dict, Callable
 import sys
-import os
 import asyncio
 import logging
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -20,11 +18,39 @@ try:
     sys.path.append('/media/duongn/New Volume/UIT/AI Challenge/DATA '
                     'DSTCDSTC/stock-quant/src')
     from data.data_fetcher import FiinDataFetcher
-    from FiinQuantX import FiinSession, RealTimeData
+    from FiinQuantX import FiinSession
     logger.info("✅ Successfully imported FiinQuantX")
 except ImportError as e:
     logger.error(f"❌ Error importing FiinQuantX: {e}")
     raise ImportError("FiinQuantX library is required for real data")
+
+
+def parse_realtime_row(row_str: str) -> Dict:
+    """Parse một chuỗi realtime từ FiinQuant thành dict chuẩn"""
+    try:
+        parts = row_str.strip().split("|")
+        if len(parts) < 32:
+            raise ValueError("Dữ liệu không đầy đủ")
+
+        # Parse timestamp and convert to timezone-naive for consistency
+        timestamp = pd.to_datetime(parts[2])
+        if timestamp.tz is not None:
+            timestamp = timestamp.tz_localize(None)
+            
+        return {
+            "ticker": parts[6],
+            "timestamp": timestamp,
+            "open": float(parts[7]) / 1000,
+            "high": float(parts[8]) / 1000,
+            "low": float(parts[9]) / 1000,
+            "close": float(parts[12]) / 1000,  # LastPrice
+            "volume": int(parts[18]),  # TotalVol
+            "change_pct": float(parts[16])
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Lỗi parse realtime row: {e}")
+        return {}
 
 
 class RealDataFetcher:
@@ -42,7 +68,7 @@ class RealDataFetcher:
         """
         self.username = username or 'DSTC_19@fiinquant.vn'
         self.password = password or 'Fiinquant0606'
-        self.mongodb_url = mongodb_url or 'mongodb://localhost:27017'
+        self.mongodb_url = "mongodb://admin:password123@localhost:27017/trading_signals?authSource=admin"
         
         # FiinQuantX components
         self.client = None
@@ -60,8 +86,14 @@ class RealDataFetcher:
         
         # Initialize connections
         self._initialize_fiin_connection()
-        self._initialize_mongodb()
+        # self._initialize_mongodb()
         
+    async def init_mongo(self):
+        """Khởi tạo MongoDB client trong đúng event loop"""
+        self.mongo_client = AsyncIOMotorClient(self.mongodb_url)
+        self.db = self.mongo_client["trading_signals"]
+        logger.info("✅ MongoDB initialized in correct loop")
+    
     def _initialize_fiin_connection(self):
         """Khởi tạo kết nối với FiinQuantX"""
         try:
@@ -143,23 +175,27 @@ class RealDataFetcher:
             data['timestamp'] = pd.to_datetime(data['timestamp'])
             
             # Sort data
-            data = data.sort_values(['ticker', 'timestamp']).reset_index(drop=True)
+            sorted_data = data.sort_values(['ticker', 'timestamp'])
+            sorted_data = sorted_data.reset_index(drop=True)
             
-            logger.info(f"✅ Fetched {len(data)} rows of historical data")
-            self.historical_data = data
+            logger.info(f"✅ Fetched {len(sorted_data)} rows of "
+                       f"historical data")
+            self.historical_data = sorted_data
             
             # Save to MongoDB if available
-            asyncio.create_task(self._save_historical_data(data))
+            asyncio.create_task(self._save_historical_data(sorted_data))
             
-            return data
+            return sorted_data
             
         except Exception as e:
             logger.error(f"❌ Error fetching historical data: {e}")
             # Try to load from MongoDB as fallback
             try:
-                return asyncio.run(self._load_historical_data_from_db(tickers))
+                return asyncio.run(
+                    self._load_historical_data_from_db(tickers))
             except Exception as mongo_error:
-                logger.error(f"❌ Error loading from MongoDB fallback: {mongo_error}")
+                logger.error(f"❌ Error loading from MongoDB fallback: "
+                            f"{mongo_error}")
                 return pd.DataFrame()
             
     async def _save_historical_data(self, data: pd.DataFrame):
@@ -171,7 +207,8 @@ class RealDataFetcher:
             # Convert to records
             records = data.to_dict('records')
             for record in records:
-                record['_id'] = f"{record['ticker']}_{record['timestamp'].isoformat()}"
+                timestamp_iso = record['timestamp'].isoformat()
+                record['_id'] = f"{record['ticker']}_{timestamp_iso}"
                 
             # Upsert to MongoDB
             collection = self.db.historical_data
@@ -187,12 +224,14 @@ class RealDataFetcher:
                 
             if operations:
                 await collection.bulk_write(operations)
-                logger.info(f"💾 Saved {len(operations)} historical records to MongoDB")
+                logger.info(f"💾 Saved {len(operations)} historical "
+                           f"records to MongoDB")
                 
         except Exception as e:
             logger.error(f"❌ Error saving to MongoDB: {e}")
             
-    async def _load_historical_data_from_db(self, tickers: List[str]) -> pd.DataFrame:
+    async def _load_historical_data_from_db(
+            self, tickers: List[str]) -> pd.DataFrame:
         """Load historical data from MongoDB as fallback"""
         if self.db is None:
             return pd.DataFrame()
@@ -213,10 +252,11 @@ class RealDataFetcher:
                 df = pd.DataFrame(records)
                 df = df.drop('_id', axis=1)
                 df['timestamp'] = pd.to_datetime(df['timestamp'])
-                df = df.sort_values(['ticker', 'timestamp']).reset_index(drop=True)
+                sorted_df = df.sort_values(['ticker', 'timestamp'])
+                sorted_df = sorted_df.reset_index(drop=True)
                 
-                logger.info(f"✅ Loaded {len(df)} rows from MongoDB")
-                return df
+                logger.info(f"✅ Loaded {len(sorted_df)} rows from MongoDB")
+                return sorted_df
             else:
                 logger.warning("⚠️ No data found in MongoDB")
                 return pd.DataFrame()
@@ -237,48 +277,119 @@ class RealDataFetcher:
         try:
             logger.info(f"🔴 Starting real-time stream for {tickers}")
             
-            def realtime_callback(data: RealTimeData):
+            def realtime_callback(data):
                 """Internal callback để xử lý real-time data"""
                 try:
-                    # Convert to DataFrame
-                    df = data.to_dataFrame()
-                    
-                    # Process each ticker
-                    for _, row in df.iterrows():
-                        ticker = row['Ticker']
-                        
-                        # Create standardized bar data
-                        bar_data = {
-                            'ticker': ticker,
-                            'timestamp': pd.to_datetime(row['TradingDate']),
-                            'open': float(row['Open']),
-                            'high': float(row['High']),
-                            'low': float(row['Low']),
-                            'close': float(row['Close']),
-                            'volume': int(row.get('MatchVolume', 0)),
-                            'change_pct': float(row.get('ChangePercent', 0))
-                        }
-                        
-                        # Update latest bars
-                        self.latest_bars[ticker] = bar_data
-                        
-                        # Save to MongoDB
-                        asyncio.create_task(self._save_realtime_bar(bar_data))
-                        
-                        logger.info(f"📊 Updated {ticker}: "
-                                   f"Close={bar_data['close']:.0f}, "
-                                   f"Change={bar_data['change_pct']:+.2f}%")
+                    # Parse data từ FiinQuantX format
+                    if hasattr(data, 'to_dataFrame'):
+                        # Old format - convert to DataFrame first
+                        df = data.to_dataFrame()
+                        for _, row in df.iterrows():
+                            ticker = row['Ticker']
+                            # Parse timestamp and ensure timezone-naive
+                            timestamp = pd.to_datetime(row['TradingDate'])
+                            if timestamp.tz is not None:
+                                timestamp = timestamp.tz_localize(None)
+                                
+                            bar_data = {
+                                'ticker': ticker,
+                                'timestamp': timestamp,
+                                'open': float(row['Open']),
+                                'high': float(row['High']),
+                                'low': float(row['Low']),
+                                'close': float(row['Close']),
+                                'volume': int(row.get('MatchVolume', 0)),
+                                'change_pct': float(
+                                    row.get('ChangePercent', 0)
+                                )
+                            }
+                            self.latest_bars[ticker] = bar_data
+                    else:
+                        # New format - parse from string data
+                        for row_str in data.get("data", []):
+                            bar_data = parse_realtime_row(row_str)
+                            if bar_data:
+                                ticker = bar_data['ticker']
+                                self.latest_bars[ticker] = bar_data
+                                
+                                logger.info(f"📊 Updated {ticker}: "
+                                           f"Close={bar_data['close']:.0f}, "
+                                           f"Change="
+                                           f"{bar_data['change_pct']:+.2f}%")
                     
                     # Call external callback if provided
-                    if callback:
-                        callback(self.latest_bars)
+                    if callback and self.latest_bars:
+                        try:
+                            if asyncio.iscoroutinefunction(callback):
+                                # Try thread-safe scheduling
+                                try:
+                                    loop = asyncio.get_running_loop()
+                                    def create_callback_task():
+                                        return asyncio.create_task(
+                                            callback(self.latest_bars))
+                                    
+                                    loop.call_soon_threadsafe(
+                                        create_callback_task)
+                                except RuntimeError:
+                                    # Run in new thread
+                                    def run_async():
+                                        try:
+                                            asyncio.run(
+                                                callback(self.latest_bars)
+                                            )
+                                        except Exception as e:
+                                            logger.error(
+                                                f"❌ Async callback error: {e}"
+                                            )
+                                    
+                                    thread = threading.Thread(
+                                        target=run_async
+                                    )
+                                    thread.start()
+                            else:
+                                # Sync callback - call directly
+                                callback(self.latest_bars)
+                        except Exception as cb_error:
+                            logger.error(f"❌ Callback error: {cb_error}")
                         
                     # Call registered callbacks
                     for cb in self.realtime_callbacks:
-                        cb(self.latest_bars)
+                        try:
+                            if asyncio.iscoroutinefunction(cb):
+                                # Try to get existing loop from main thread
+                                try:
+                                    loop = asyncio.get_running_loop()
+                                    def create_cb_task():
+                                        return asyncio.create_task(
+                                            cb(self.latest_bars))
+                                    
+                                    loop.call_soon_threadsafe(create_cb_task)
+                                except RuntimeError:
+                                    # No running loop, schedule from thread
+                                    
+                                    def run_async():
+                                        try:
+                                            asyncio.run(cb(self.latest_bars))
+                                        except Exception as e:
+                                            logger.error(
+                                                f"❌ Async callback error: {e}"
+                                            )
+                                    
+                                    thread = threading.Thread(
+                                        target=run_async
+                                    )
+                                    thread.start()
+                            else:
+                                cb(self.latest_bars)
+                        except Exception as cb_error:
+                            logger.error(
+                                f"❌ Registered callback error: {cb_error}"
+                            )
                         
                 except Exception as e:
                     logger.error(f"❌ Error in realtime callback: {e}")
+                    import traceback
+                    logger.error(f"Traceback: {traceback.format_exc()}")
             
             # Start FiinQuantX stream
             self.realtime_stream = self.client.Trading_Data_Stream(
@@ -312,9 +423,11 @@ class RealDataFetcher:
             return
             
         try:
+            if isinstance(bar_data["timestamp"], pd.Timestamp):
+                bar_data["timestamp"] = bar_data["timestamp"].to_pydatetime()
             collection = self.db.realtime_bars
-            bar_data['_id'] = (f"{bar_data['ticker']}_"
-                              f"{bar_data['timestamp'].isoformat()}")
+            timestamp_iso = bar_data['timestamp'].isoformat()
+            bar_data['_id'] = f"{bar_data['ticker']}_{timestamp_iso}"
             
             await collection.update_one(
                 {'_id': bar_data['_id']},
@@ -380,7 +493,6 @@ class RealDataFetcher:
         """Check if market is currently open"""
         now = datetime.now()
         weekday = now.weekday()
-        
         # Skip weekends
         if weekday >= 5:
             return False
@@ -424,7 +536,8 @@ class RealDataFetcher:
                     bar_data.pop('_id', None)
                     latest_bars[ticker] = bar_data
                     
-            logger.info(f"✅ Loaded last session data for {len(latest_bars)} tickers")
+            logger.info(f"✅ Loaded last session data for "
+                       f"{len(latest_bars)} tickers")
             return latest_bars
             
         except Exception as e:
@@ -433,8 +546,9 @@ class RealDataFetcher:
             
     def get_status(self) -> Dict:
         """Get status của data fetcher"""
+        connection_status = 'Connected' if self.client else 'Disconnected'
         return {
-            'connection_status': 'Connected' if self.client else 'Disconnected',
+            'connection_status': connection_status,
             'username': self.username,
             'market_open': self.is_market_open(),
             'latest_bars_count': len(self.latest_bars),

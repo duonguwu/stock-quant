@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from typing import List, Dict
 import sys
 import os
+from motor.motor_asyncio import AsyncIOMotorClient 
 
 # Import FiinQuantX
 try:
