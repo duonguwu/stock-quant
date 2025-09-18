@@ -683,7 +683,19 @@
                 createTickerChart(selectedTicker, level.key, level.color);
             });
         }
-
+        function toTradingLabel(date) {
+            const day = date.toISOString().split("T")[0]; // yyyy-mm-dd
+            const h = date.getHours();
+            const m = date.getMinutes();
+            return `${day} ${h.toString().padStart(2,"0")}:${m.toString().padStart(2,"0")}`;
+        }
+        function isTradingTime(date) {
+            const hour = date.getHours();
+            return hour >= 9 && hour < 16; // chỉ giữ từ 9h → 16h
+        }
+        function parseTradingLabel(label) {
+            return new Date(label.replace(" ", "T") + ":00");
+            }
         // Create chart for specific ticker and confidence level
         function createTickerChart(ticker, level, color) {
             const ctx = document.getElementById(`chart-${ticker}-${level}`).getContext("2d");
@@ -696,10 +708,13 @@
             // Price line for this ticker only
             datasets.push({
                 label: `${ticker} Price`,
-                data: data.price_data.map(item => ({
-                    x: new Date(item.timestamp.replace(" ", "T") + ":00"), // Fix timestamp parsing
-                    y: item.close
-                })),
+                data: data.price_data
+                    .map(item => {
+                        const d = new Date(item.timestamp.replace(" ", "T") + ":00");
+                        if (!isTradingTime(d)) return null;
+                        return { x: toTradingLabel(d), y: item.close };
+                    })
+                    .filter(p => p !== null),
                 borderColor: color,
                 backgroundColor: "transparent",
                 tension: 0.4,
@@ -718,10 +733,11 @@
                 if (buySignals.length > 0) {
                     datasets.push({
                         label: `${ticker} BUY`,
-                        data: buySignals.map(s => ({
-                            x: new Date(s.timestamp.replace(" ", "T") + ":00"), // Fix timestamp parsing
-                            y: s.price
-                        })),
+                        data: buySignals.map(s => {
+                            const d = new Date(s.timestamp.replace(" ", "T") + ":00");
+                            if (!isTradingTime(d)) return null;
+                            return { x: toTradingLabel(d), y: s.price };
+                        }).filter(p => p !== null),
                         backgroundColor: "#27ae60",
                         borderColor: "#27ae60",
                         pointStyle: "triangle",
@@ -737,10 +753,11 @@
                 if (sellSignals.length > 0) {
                     datasets.push({
                         label: `${ticker} SELL`,
-                        data: sellSignals.map(s => ({
-                            x: new Date(s.timestamp.replace(" ", "T") + ":00"), // Fix timestamp parsing
-                            y: s.price
-                        })),
+                        data: sellSignals.map(s => {
+                            const d = new Date(s.timestamp.replace(" ", "T") + ":00");
+                            if (!isTradingTime(d)) return null;
+                            return { x: toTradingLabel(d), y: s.price };
+                        }).filter(p => p !== null),
                         backgroundColor: "#e74c3c",
                         borderColor: "#e74c3c",
                         pointStyle: "triangle",
@@ -757,10 +774,11 @@
                 if (holdSignals.length > 0) {
                     datasets.push({
                         label: `${ticker} HOLD`,
-                        data: holdSignals.map(s => ({
-                            x: new Date(s.timestamp.replace(" ", "T") + ":00"), // Fix timestamp parsing
-                            y: s.price
-                        })),
+                        data: holdSignals.map(s => {
+                            const d = new Date(s.timestamp.replace(" ", "T") + ":00");
+                            if (!isTradingTime(d)) return null;
+                            return { x: toTradingLabel(d), y: s.price };
+                        }).filter(p => p !== null),
                         backgroundColor: "#95a5a6",
                         borderColor: "#95a5a6",
                         pointStyle: "rect",
@@ -786,7 +804,7 @@
                     maintainAspectRatio: false,
                     interaction: {
                         intersect: false,
-                        mode: "index"
+                        mode: "x"
                     },
                     plugins: {
                         legend: {
@@ -813,7 +831,7 @@
                             },
                             callbacks: {
                                 title: function(context) {
-                                    const date = new Date(context[0].parsed.x);
+                                    const date = parseTradingLabel(context[0].label);
                                     return `📅 ${date.toLocaleString("vi-VN", {
                                         year: "numeric",
                                         month: "2-digit",
@@ -827,30 +845,34 @@
                                     const dataset = context.dataset;
                                     const value = context.parsed.y;
                                     const index = context.dataIndex;
-                                    
+                                    const lbl = context.label;
                                     // Lấy thông tin chi tiết từ data gốc
                                     let tooltipText = `${dataset.label}: ${value.toFixed(0)} VND`;
                                     
-                                    // Nếu là price line, hiển thị thêm thông tin OHLCV
+                                    // Nếu là price line, hiển thị thêm thông tin OHLCV (match theo timestamp hover)
                                     if (dataset.label.includes("Price")) {
-                                        const priceData = data.price_data[index];
-                                        if (priceData) {
+                                        const pricePoint = data.price_data.find(p => {
+                                        const d = new Date(p.timestamp.replace(" ", "T") + ":00");
+                                        return toTradingLabel(d) === lbl;
+                                        });
+                                        if (pricePoint) {
                                             tooltipText = [
                                                 `📊 ${ticker} - Giá đóng cửa`,
                                                 `💰 Giá: ${value.toFixed(0)} VND`,
-                                                `📈 Mở: ${priceData.open.toFixed(0)} VND`,
-                                                `📉 Cao: ${priceData.high.toFixed(0)} VND`,
-                                                `📉 Thấp: ${priceData.low.toFixed(0)} VND`,
-                                                `📊 Khối lượng: ${priceData.volume.toLocaleString()} CP`
+                                                `📈 Mở: ${pricePoint.open.toFixed(0)} VND`,
+                                                `📉 Cao: ${pricePoint.high.toFixed(0)} VND`,
+                                                `📉 Thấp: ${pricePoint.low.toFixed(0)} VND`,
+                                                `📊 Khối lượng: ${pricePoint.volume.toLocaleString()} CP`
                                             ];
                                         }
                                     }
                                     
-                                    // Nếu là signal, hiển thị thông tin signal
+                                    // Nếu là signal, hiển thị thông tin signal (match theo timestamp hover)
                                     if (dataset.label.includes("BUY") || dataset.label.includes("SELL") || dataset.label.includes("HOLD")) {
                                         const signals = data.signals[level].signals;
+                                        const ts = context.parsed.x;
                                         const signalData = signals.find(s => 
-                                            new Date(s.timestamp.replace(" ", "T") + ":00").getTime() === context.parsed.x
+                                            new Date(s.timestamp.replace(" ", "T") + ":00").getTime() === ts
                                         );
                                         
                                         if (signalData) {
@@ -860,13 +882,7 @@
                                             const changePct = signalData.change_pct || 0;
                                             
                                             tooltipText = [
-                                                `🎯 ${signalType} Signal (${level.replace("conf_", "")}% Confidence)`,
-                                                `💰 Giá: ${value.toFixed(0)} VND`,
-                                                `📊 Confidence: ${(confidence * 100).toFixed(1)}%`,
-                                                `📈 Volume: ${volume.toLocaleString()} CP`,
-                                                `�� Thay đổi: ${changePct.toFixed(2)}%`,
-                                                `⏰ Thời gian: ${new Date(signalData.timestamp).toLocaleString("vi-VN")}`
-                                            ];
+                                                `🎯 ${signalType} Signal (${level.replace("conf_", "")}% Confidence)`,];
                                         }
                                     }
                                     
@@ -874,7 +890,7 @@
                                 },
                                 afterBody: function(context) {
                                     // Hiển thị thông tin bổ sung ở cuối tooltip
-                                    const date = new Date(context[0].parsed.x);
+                                    const date = parseTradingLabel(context[0].label);
                                     const timeInfo = date.toLocaleString("vi-VN", {
                                         weekday: "long",
                                         year: "numeric",
@@ -894,16 +910,15 @@
                     },
                     scales: {
                         x: {
-                            type: "time",
-                            time: {
-                                displayFormats: {
-                                    hour: "HH:mm",
-                                    day: "MM/dd"
-                                }
-                            },
-                            title: {
-                                display: true,
-                                text: "Time (15m intervals)"
+                            type: 'category',
+                            ticks: {
+                            autoSkip: true,
+                            maxRotation: 0,
+                            callback: function(value, index, ticks) {
+                                // hiển thị label đẹp hơn
+                                const label = this.getLabelForValue(value);
+                                return label.split(" ")[1]; // chỉ hiện HH:mm
+                            }
                             }
                         },
                         price: {
