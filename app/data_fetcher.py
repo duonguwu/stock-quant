@@ -357,25 +357,9 @@ class RealDataFetcher:
                                 )
                             }
                             self.latest_bars[ticker] = bar_data
-                            # Upsert to historical (15m bucket, realtime)
-                            try:
-                                loop = asyncio.get_running_loop()
-
-                                def create_task_upsert():
-                                    return asyncio.create_task(self.upsert_historical_bar(
-                                        bar_data, finalized=False, source='realtime'))
-
-                                loop.call_soon_threadsafe(create_task_upsert)
-                            except RuntimeError:
-                                def run_async():
-                                    try:
-                                        asyncio.run(
-                                            self.upsert_historical_bar(
-                                                bar_data, finalized=False, source='realtime'))
-                                    except Exception as e:
-                                        logger.error(
-                                            f"❌ Async upsert error: {e}")
-                                threading.Thread(target=run_async).start()
+                            
+                            # BỎ UPSERT Ở ĐÂY - sẽ upsert trong main callback
+                            
                     else:
                         # New format - parse from string data
                         for row_str in data.get("data", []):
@@ -388,26 +372,8 @@ class RealDataFetcher:
                                             f"Close={bar_data['close']:.0f}, "
                                             f"Change="
                                             f"{bar_data['change_pct']:+.2f}%")
-                                # Upsert to historical (15m bucket, realtime)
-                                try:
-                                    loop = asyncio.get_running_loop()
-
-                                    def create_task_upsert2():
-                                        return asyncio.create_task(self.upsert_historical_bar(
-                                            bar_data, finalized=False, source='realtime'))
-
-                                    loop.call_soon_threadsafe(
-                                        create_task_upsert2)
-                                except RuntimeError:
-                                    def run_async2():
-                                        try:
-                                            asyncio.run(
-                                                self.upsert_historical_bar(
-                                                    bar_data, finalized=False, source='realtime'))
-                                        except Exception as e:
-                                            logger.error(
-                                                f"❌ Async upsert error: {e}")
-                                    threading.Thread(target=run_async2).start()
+                                
+                                # BỎ UPSERT Ở ĐÂY - sẽ upsert trong main callback
 
                     # Call external callback if provided
                     if callback and self.latest_bars:

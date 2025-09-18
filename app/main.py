@@ -25,7 +25,14 @@ from app.telegram_signal_bot import TelegramSignalBot
 
 # Thêm timezone Việt Nam
 VN_TZ = pytz.timezone('Asia/Ho_Chi_Minh')
+main_loop = None
 
+def run_in_main_loop(coro):
+    """Đảm bảo coroutine chạy trong main event loop."""
+    global main_loop
+    if main_loop is None:
+        raise RuntimeError("Main loop chưa được khởi tạo")
+    return asyncio.run_coroutine_threadsafe(coro, main_loop)
 
 def get_vn_time() -> datetime:
     """Lấy thời gian hiện tại theo múi giờ Việt Nam"""
@@ -178,10 +185,10 @@ async def market_watchdog():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
-    global data_fetcher, feature_engine, model_inference, telegram_bot, realtime_running
+    global data_fetcher, feature_engine, model_inference, telegram_bot, realtime_running, main_loop
 
     logger.info("🚀 Starting Real-time Trading Dashboard...")
-
+    main_loop = asyncio.get_running_loop()
     try:
         # Initialize feature engine
         feature_engine = SimpleFeatureEngine()
@@ -231,7 +238,7 @@ async def lifespan(app: FastAPI):
             realtime_running = False
 
         # Start watchdog to auto-switch open/close states
-        asyncio.create_task(market_watchdog())
+        # asyncio.create_task(market_watchdog())
 
         yield
 
@@ -398,6 +405,23 @@ async def load_last_session_data():
         current_data = {'demo': True, 'market_closed': True}
 
 
+# Thêm function riêng để upsert realtime bars
+async def upsert_realtime_bars(latest_bars: Dict):
+    """Upsert realtime bars vào historical_data"""
+    try:
+        for ticker, bar in latest_bars.items():
+            run_in_main_loop(
+                data_fetcher.upsert_historical_bar(
+                    bar, 
+                    finalized=False, 
+                    source='realtime'
+                )
+            )
+        logger.info(f"✅ Upserted {len(latest_bars)} realtime bars")
+    except Exception as e:
+        logger.error(f"❌ Error upserting realtime bars: {e}")
+
+
 def start_realtime_pipeline():
     """Start real-time data pipeline"""
     global current_data
@@ -416,6 +440,10 @@ def start_realtime_pipeline():
                     'market_closed': False
                 }
                 logger.info(f"🎯 Received real-time bar:\n{latest_bars}")
+                
+                # UPSERT REALTIME BARS VÀO HISTORICAL_DATA
+                await upsert_realtime_bars(latest_bars)
+                
                 # ⚠️ CRITICAL FIX: Combine với historical data
                 latest_df = pd.DataFrame([bar for bar in latest_bars.values()])
                 if len(latest_df) > 0:
@@ -1023,7 +1051,12 @@ async def get_chart_data(ticker: str):
                                     'timestamp': floored.isoformat(),
                                     'action': signal['action'],
                                     'confidence': signal['confidence'],
-                                    'price': price
+                                    'price': price,  # price đã được tính từ ticker_raw
+                                    # Add additional fields if available
+                                    'volume': signal.get('volume', 0),
+                                    'change_pct': signal.get('change_pct', 0),
+                                    'source': signal.get('source', 'unknown'),
+                                    'data_format': 'new' if 'price_close_15m' in signal else 'old'
                                 })
 
                     threshold_pct = int(confidence_threshold * 100)
@@ -1080,7 +1113,10 @@ async def deduplicate_signals(signals_list):
         except Exception:
             key_ts = ts_str
 
-        key = f"{key_ts}_{signal['action']}_{signal.get('price', 0)}"
+        # Handle both old and new price fields
+        price_key = signal.get('price_close_15m', signal.get('price', 0))
+        key = f"{key_ts}_{signal['action']}_{price_key}"
+        
         if key not in seen:
             seen.add(key)
             signal['timestamp'] = key_ts
@@ -1164,7 +1200,17 @@ async def get_dashboard_charts():
                         'timestamp': signal['timestamp'].strftime('%Y-%m-%d %H:%M'),
                         'action': signal['action'],
                         'confidence': signal['confidence'],
-                        'price': signal['price']}
+                        # Handle both old and new price fields
+                        'price': signal.get('price_close_15m', signal.get('price', 0)),
+                        'price_at_signal': signal.get('price_at_signal', signal.get('price', 0)),
+                        'volume': signal.get('volume', 0),
+                        'change_pct': signal.get('change_pct', 0),
+                        'window_start': signal.get('window_start', signal['timestamp']).strftime('%Y-%m-%d %H:%M'),
+                        'source': signal.get('source', 'unknown'),
+                        'confidence_threshold': signal.get('confidence_threshold', 0),
+                        # Add data format indicator for debugging
+                        'data_format': 'new' if 'price_close_15m' in signal else 'old'
+                    }
                     realtime_signals_response[ticker][conf_level].append(
                         signal_formatted)
 
@@ -1427,12 +1473,21 @@ async def get_realtime_signals():
                 second=0,
                 microsecond=0)
 
-            # Format signal for frontend
+            # Format signal for frontend - handle both old and new data format
             signal_formatted = {
                 'timestamp': floored.strftime('%Y-%m-%d %H:%M'),
                 'action': signal['action'],
                 'confidence': signal['confidence'],
-                'price': signal['price']
+                # Handle both old and new price fields
+                'price': signal.get('price_close_15m', signal.get('price', 0)),
+                'price_at_signal': signal.get('price_at_signal', signal.get('price', 0)),
+                'volume': signal.get('volume', 0),
+                'change_pct': signal.get('change_pct', 0),
+                'window_start': signal.get('window_start', signal['timestamp']).strftime('%Y-%m-%d %H:%M'),
+                'source': signal.get('source', 'unknown'),
+                'confidence_threshold': signal.get('confidence_threshold', 0),
+                # Add data format indicator for debugging
+                'data_format': 'new' if 'price_close_15m' in signal else 'old'
             }
             grouped_signals[ticker][conf_level].append(signal_formatted)
 
