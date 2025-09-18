@@ -17,7 +17,7 @@ import json
 from typing import List, Dict
 import threading
 import pytz  # Thêm import pytz
-
+from fastapi import Request
 from app.data_fetcher import RealDataFetcher
 from app.feature_engine import SimpleFeatureEngine
 from app.core.model_inference import RealModelInference
@@ -996,7 +996,7 @@ async def charts_page(request: Request):
 
 
 @app.get("/charts-rulebase")
-async def charts_rulebase():
+async def charts_rulebase(request: Request):
     """Rule-based signal analysis page"""
     return templates.TemplateResponse("charts_rulebase.html", {
         "request": request,
