@@ -97,4 +97,12 @@ def main() -> None:
 
     if ops:
         res = col.bulk_write(ops, ordered=False)
-        upserts = getattr(res, "upser
+        upserts = getattr(res, "upserted_count", 0)
+        mods = res.modified_count
+        print(f"✅ Imported: upserted={upserts}, modified={mods}, total_ops={len(ops)}")
+    else:
+        print("ℹ️ No rows to import.")
+
+
+if __name__ == "__main__":
+    main()
