@@ -16,11 +16,26 @@ from datetime import datetime, timedelta
 import json
 from typing import List, Dict
 import threading
+import pytz  # Thêm import pytz
 
 from app.data_fetcher import RealDataFetcher
 from app.feature_engine import SimpleFeatureEngine
 from app.core.model_inference import RealModelInference
 from app.telegram_signal_bot import TelegramSignalBot
+
+# Thêm timezone Việt Nam
+VN_TZ = pytz.timezone('Asia/Ho_Chi_Minh')
+
+
+def get_vn_time() -> datetime:
+    """Lấy thời gian hiện tại theo múi giờ Việt Nam"""
+    return datetime.now(VN_TZ).replace(tzinfo=None)
+
+
+def get_vn_date_str() -> str:
+    """Lấy ngày hiện tại theo múi giờ Việt Nam dạng string"""
+    return get_vn_time().strftime('%Y-%m-%d')
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -41,24 +56,34 @@ last_signal_window = {}  # {(ticker, conf_key): window_start}
 
 def get_15m_window_start(timestamp: datetime) -> datetime:
     """Lấy thời gian bắt đầu cửa sổ 15 phút cho timestamp"""
-    return timestamp.replace(minute=(timestamp.minute // 15) * 15, second=0, microsecond=0)
+    # Đảm bảo timestamp là timezone-naive
+    if timestamp.tzinfo is not None:
+        timestamp = timestamp.replace(tzinfo=None)
+    return timestamp.replace(
+        minute=(
+            timestamp.minute //
+            15) *
+        15,
+        second=0,
+        microsecond=0)
 
 
 def get_15m_bar_price(ticker: str, window_start: datetime) -> Dict:
     """Lấy giá 15m bar từ historical_data hoặc fallback realtime"""
     global historical_data, current_data
-    
+
     # Tìm bar 15m từ historical_data trước
     if 'raw_data' in historical_data:
         raw_data = historical_data['raw_data']
         ticker_data = raw_data[raw_data['ticker'] == ticker]
-        
+
         # Tìm bar có timestamp gần nhất với window_start
         if len(ticker_data) > 0:
             ticker_data = ticker_data.copy()
-            ticker_data['time_diff'] = abs((ticker_data['timestamp'] - window_start).dt.total_seconds())
+            ticker_data['time_diff'] = abs(
+                (ticker_data['timestamp'] - window_start).dt.total_seconds())
             closest_bar = ticker_data.loc[ticker_data['time_diff'].idxmin()]
-            
+
             if closest_bar['time_diff'] <= 900:  # Trong vòng 15 phút
                 return {
                     'price_close_15m': float(closest_bar['close']),
@@ -66,7 +91,7 @@ def get_15m_bar_price(ticker: str, window_start: datetime) -> Dict:
                     'volume': int(closest_bar.get('volume', 0)),
                     'change_pct': float(closest_bar.get('change_pct', 0))
                 }
-    
+
     # Fallback: dùng realtime data
     latest_bars = current_data.get('latest_bars', {})
     if ticker in latest_bars:
@@ -77,7 +102,7 @@ def get_15m_bar_price(ticker: str, window_start: datetime) -> Dict:
             'volume': int(bar.get('volume', 0)),
             'change_pct': float(bar.get('change_pct', 0))
         }
-    
+
     return {
         'price_close_15m': 0,
         'price_at_signal': 0,
@@ -135,7 +160,8 @@ async def market_watchdog():
                 start_realtime_pipeline()
                 realtime_running = True
             elif not is_open and realtime_running:
-                logger.info("🔴 Market closed → stopping realtime and running off-market batch")
+                logger.info(
+                    "🔴 Market closed → stopping realtime and running off-market batch")
                 try:
                     data_fetcher.stop_realtime_stream()
                 except Exception as e:
@@ -198,7 +224,8 @@ async def lifespan(app: FastAPI):
             start_realtime_pipeline()
             realtime_running = True
         else:
-            logger.info("🏪 Market is closed, loading last session data and running off-market batch")
+            logger.info(
+                "🏪 Market is closed, loading last session data and running off-market batch")
             await load_last_session_data()
             asyncio.create_task(offmarket_refresh_last_3_days())
             realtime_running = False
@@ -222,8 +249,8 @@ async def offmarket_refresh_last_3_days():
     global data_fetcher, historical_data, feature_engine, model_inference
     try:
         tickers = ['CTG', 'MBB', 'ACB', 'QNS', 'MSH']
-        end_date = datetime.now().strftime('%Y-%m-%d')
-        start_date = (datetime.now() - timedelta(days=3)).strftime('%Y-%m-%d')
+        end_date = get_vn_date_str()  # Dùng timezone VN
+        start_date = (get_vn_time() - timedelta(days=3)).strftime('%Y-%m-%d')
 
         logger.info("📦 Off-market batch: fetching last 3 days...")
         fresh_data = data_fetcher.fetch_historical_data(
@@ -240,15 +267,18 @@ async def offmarket_refresh_last_3_days():
         if 'raw_data' in historical_data:
             existing = historical_data['raw_data']
             combined = pd.concat([existing, fresh_data], ignore_index=True)
-            combined = combined.drop_duplicates(subset=['ticker', 'timestamp'], keep='last')
-            combined = combined.sort_values(['ticker', 'timestamp']).reset_index(drop=True)
+            combined = combined.drop_duplicates(
+                subset=['ticker', 'timestamp'], keep='last')
+            combined = combined.sort_values(
+                ['ticker', 'timestamp']).reset_index(drop=True)
             historical_data['raw_data'] = combined
         else:
             historical_data['raw_data'] = fresh_data
 
         # Recompute features for the combined data
         logger.info("🧮 Off-market batch: recomputing features")
-        features_df = feature_engine.engineer_features(historical_data['raw_data'])
+        features_df = feature_engine.engineer_features(
+            historical_data['raw_data'])
         if len(features_df) > 0:
             historical_data['features_data'] = features_df
         else:
@@ -257,12 +287,14 @@ async def offmarket_refresh_last_3_days():
 
         # Generate signals for latest bar per ticker and save to DB
         try:
-            latest_features = features_df.groupby('ticker').tail(1).reset_index(drop=True)
+            latest_features = features_df.groupby(
+                'ticker').tail(1).reset_index(drop=True)
             tickers_list = latest_features['ticker'].tolist()
             feature_cols = feature_engine.get_feature_list(latest_features)
             features_only = latest_features[feature_cols].fillna(0)
 
-            predictions = model_inference.predict_with_confidence(features_only, tickers_list)
+            predictions = model_inference.predict_with_confidence(
+                features_only, tickers_list)
             # Save signals using existing helper
             await save_signals_to_database(predictions, {})
             logger.info("💾 Off-market batch: signals saved")
@@ -561,8 +593,8 @@ async def save_signals_to_database(predictions: Dict, latest_bars: Dict):
             return
 
         signals_collection = data_fetcher.db.realtime_signals
-        current_time = datetime.now()
-        
+        current_time = get_vn_time()  # Dùng timezone VN
+
         # Lấy cửa sổ 15 phút hiện tại
         current_window = get_15m_window_start(current_time)
 
@@ -573,16 +605,19 @@ async def save_signals_to_database(predictions: Dict, latest_bars: Dict):
             for signal in signals:
                 if signal.get('action') != 'HOLD':
                     ticker = signal.get('ticker')
-                    
-                    # Kiểm tra xem đã gửi signal cho ticker + conf_key trong cửa sổ này chưa
+
+                    # Kiểm tra xem đã gửi signal cho ticker + conf_key trong
+                    # cửa sổ này chưa
                     cache_key = (ticker, conf_key)
-                    if cache_key in last_signal_window and last_signal_window[cache_key] == current_window:
-                        logger.info(f"⏭️ Skipping {ticker} {conf_key} signal - already sent in current window")
+                    if cache_key in last_signal_window and last_signal_window[
+                            cache_key] == current_window:
+                        logger.info(
+                            f"⏭️ Skipping {ticker} {conf_key} signal - already sent in current window")
                         continue
-                    
+
                     # Lấy giá chính xác từ 15m bar
                     price_info = get_15m_bar_price(ticker, current_window)
-                    
+
                     signal_doc = {
                         '_id': f"{ticker}_{conf_key}_{current_window.isoformat()}",
                         'ticker': ticker,
@@ -605,13 +640,14 @@ async def save_signals_to_database(predictions: Dict, latest_bars: Dict):
                         {'$set': signal_doc},
                         upsert=True
                     )
-                    
+
                     # Cập nhật cache
                     last_signal_window[cache_key] = current_window
 
-                    logger.info(f"💾 Saved {ticker} {signal.get('action')} signal to DB "
-                              f"(window: {current_window.strftime('%H:%M')}, "
-                              f"price: {price_info['price_close_15m']:.0f})")
+                    logger.info(
+                        f"💾 Saved {ticker} {signal.get('action')} signal to DB "
+                        f"(window: {current_window.strftime('%H:%M')}, "
+                        f"price: {price_info['price_close_15m']:.0f})")
 
     except Exception as e:
         logger.error(f"❌ Error saving signals to database: {e}")
@@ -620,49 +656,56 @@ async def save_signals_to_database(predictions: Dict, latest_bars: Dict):
 async def send_signals_to_telegram(predictions: Dict, latest_bars: Dict):
     """Send signals to Telegram - với 15m window logic"""
     global last_signal_window
-    
+
     try:
-        logger.info(f"📱 Telegram bot min_confidence: {telegram_bot.min_confidence}")
-        
-        current_time = datetime.now()
+        logger.info(
+            f"📱 Telegram bot min_confidence: {telegram_bot.min_confidence}")
+
+        current_time = get_vn_time()  # Dùng timezone VN
         current_window = get_15m_window_start(current_time)
 
         for conf_key, conf_data in predictions.items():
             confidence_threshold = conf_data.get('confidence_threshold', 0)
 
             if confidence_threshold >= telegram_bot.min_confidence:
-                logger.info(f"✅ Processing {conf_key} (threshold: {confidence_threshold:.2f})")
+                logger.info(
+                    f"✅ Processing {conf_key} (threshold: {confidence_threshold:.2f})")
                 signals = conf_data.get('signals', [])
 
                 for signal in signals:
                     if signal.get('action') != 'HOLD':
                         ticker = signal.get('ticker')
-                        
+
                         # Kiểm tra cache cho Telegram
                         cache_key = (ticker, conf_key)
-                        if cache_key in last_signal_window and last_signal_window[cache_key] == current_window:
-                            logger.info(f"⏭️ Skipping Telegram {ticker} {conf_key} - already sent in current window")
+                        if cache_key in last_signal_window and last_signal_window[
+                                cache_key] == current_window:
+                            logger.info(
+                                f"⏭️ Skipping Telegram {ticker} {conf_key} - already sent in current window")
                             continue
-                        
+
                         if ticker in latest_bars:
                             bar = latest_bars[ticker]
-                            price_info = get_15m_bar_price(ticker, current_window)
-                            
+                            price_info = get_15m_bar_price(
+                                ticker, current_window)
+
                             signal_enhanced = {
                                 **signal,
-                                'price': price_info['price_close_15m'],  # Dùng giá 15m bar
+                                # Dùng giá 15m bar
+                                'price': price_info['price_close_15m'],
                                 'volume': price_info['volume'],
                                 'change_pct': price_info['change_pct'],
                                 'timestamp': current_window,  # Dùng window_start
                                 'window_start': current_window
                             }
 
-                            logger.info(f"�� Sending {ticker} {signal['action']} to Telegram "
-                                      f"(window: {current_window.strftime('%H:%M')})")
+                            logger.info(
+                                f"�� Sending {ticker} {signal['action']} to Telegram "
+                                f"(window: {current_window.strftime('%H:%M')})")
                             await telegram_bot._process_individual_signal(
                                 signal_enhanced, confidence_threshold
                             )
-                            
+
                             # Cập nhật cache cho Telegram
                             last_signal_window[cache_key] = current_window
 
@@ -969,8 +1012,13 @@ async def get_chart_data(ticker: str):
                             if signal['action'] != 'HOLD':
                                 price = (ticker_raw.iloc[i]['close']
                                          if i < len(ticker_raw) else 0)
-                                floored = timestamp.replace(minute=(timestamp.minute // 15) * 15,
-                                                            second=0, microsecond=0)
+                                floored = timestamp.replace(
+                                    minute=(
+                                        timestamp.minute //
+                                        15) *
+                                    15,
+                                    second=0,
+                                    microsecond=0)
                                 signal_points.append({
                                     'timestamp': floored.isoformat(),
                                     'action': signal['action'],
@@ -1023,7 +1071,11 @@ async def deduplicate_signals(signals_list):
         ts_str = signal['timestamp']
         try:
             ts = datetime.fromisoformat(ts_str.replace('Z', ''))
-            floored = ts.replace(minute=(ts.minute // 15) * 15, second=0, microsecond=0)
+            floored = ts.replace(
+                minute=(
+                    ts.minute // 15) * 15,
+                second=0,
+                microsecond=0)
             key_ts = floored.strftime('%Y-%m-%d %H:%M')
         except Exception:
             key_ts = ts_str
@@ -1116,7 +1168,8 @@ async def get_dashboard_charts():
                     realtime_signals_response[ticker][conf_level].append(
                         signal_formatted)
 
-                # Deduplicate signals for each ticker and confidence level (15m bucket)
+                # Deduplicate signals for each ticker and confidence level (15m
+                # bucket)
                 for ticker in realtime_signals_response:
                     for conf_level in realtime_signals_response[ticker]:
                         realtime_signals_response[ticker][conf_level] = await deduplicate_signals(
@@ -1201,8 +1254,13 @@ async def get_dashboard_charts():
                                 timestamp = ticker_features.iloc[i]['timestamp']
                                 price = ticker_raw.iloc[i]['close'] if i < len(
                                     ticker_raw) else 0
-                                floored = timestamp.replace(minute=(timestamp.minute // 15) * 15,
-                                                            second=0, microsecond=0)
+                                floored = timestamp.replace(
+                                    minute=(
+                                        timestamp.minute //
+                                        15) *
+                                    15,
+                                    second=0,
+                                    microsecond=0)
                                 model_signals.append({
                                     'timestamp': floored.strftime('%Y-%m-%d %H:%M'),
                                     'action': signal['action'],
@@ -1267,8 +1325,8 @@ async def refresh_data():
 
         # Fetch fresh data từ FiinQuantX cho ngày hiện tại
         tickers = ['CTG', 'MBB', 'ACB', 'QNS', 'MSH']
-        end_date = datetime.now().strftime('%Y-%m-%d')
-        start_date = (datetime.now() - timedelta(days=3)).strftime('%Y-%m-%d')
+        end_date = get_vn_date_str()  # Dùng timezone VN
+        start_date = (get_vn_time() - timedelta(days=3)).strftime('%Y-%m-%d')
 
         fresh_data = data_fetcher.fetch_historical_data(
             tickers=tickers,
@@ -1294,7 +1352,8 @@ async def refresh_data():
 
             # Recalculate features
             logger.info("🧮 Recalculating features...")
-            features_df = feature_engine.engineer_features(historical_data['raw_data'])
+            features_df = feature_engine.engineer_features(
+                historical_data['raw_data'])
             if len(features_df) > 0:
                 historical_data['features_data'] = features_df
                 logger.info(f"✅ Updated features: {len(features_df)} rows")
@@ -1360,8 +1419,13 @@ async def get_realtime_signals():
                 grouped_signals[ticker][conf_level] = []
 
             # Floor timestamp to 15m for consistency
-            floored = signal['timestamp'].replace(minute=(signal['timestamp'].minute // 15) * 15,
-                                                  second=0, microsecond=0)
+            floored = signal['timestamp'].replace(
+                minute=(
+                    signal['timestamp'].minute //
+                    15) *
+                15,
+                second=0,
+                microsecond=0)
 
             # Format signal for frontend
             signal_formatted = {

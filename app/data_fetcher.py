@@ -13,6 +13,22 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from config.data_fetcher import FiinDataFetcher
 from FiinQuantX import FiinSession
 from pymongo import UpdateOne
+import pytz  # Thêm import pytz
+
+# Thêm timezone Việt Nam
+VN_TZ = pytz.timezone('Asia/Ho_Chi_Minh')
+
+
+def get_vn_time() -> datetime:
+    """Lấy thời gian hiện tại theo múi giờ Việt Nam"""
+    return datetime.now(VN_TZ).replace(tzinfo=None)
+
+
+def get_vn_date_str() -> str:
+    """Lấy ngày hiện tại theo múi giờ Việt Nam dạng string"""
+    return get_vn_time().strftime('%Y-%m-%d')
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -117,7 +133,7 @@ class RealDataFetcher:
 
     def get_current_15m_bar_time(self) -> datetime:
         """Lấy thời gian của 15m bar hiện tại"""
-        now = datetime.now()
+        now = get_vn_time()  # Dùng timezone VN
         minute = (now.minute // 15) * 15
         current_bar = now.replace(minute=minute, second=0, microsecond=0)
         return current_bar
@@ -132,13 +148,13 @@ class RealDataFetcher:
         Args:
             tickers: List các mã cổ phiếu
             start_date: Ngày bắt đầu (hard-coded 15/03/2025)
-            end_date: Ngày kết thúc (default = hôm nay)
+            end_date: Ngày kết thúc (default = hôm nay theo timezone VN)
 
         Returns:
             DataFrame: Dữ liệu OHLCV lịch sử
         """
         if end_date is None:
-            end_date = datetime.now().strftime('%Y-%m-%d')
+            end_date = get_vn_date_str()  # Dùng timezone VN
 
         try:
             logger.info(f"📊 Fetching historical data for {tickers} "
@@ -346,17 +362,19 @@ class RealDataFetcher:
                                 loop = asyncio.get_running_loop()
 
                                 def create_task_upsert():
-                                    return asyncio.create_task(
-                                        self.upsert_historical_bar(bar_data, finalized=False, source='realtime')
-                                    )
+                                    return asyncio.create_task(self.upsert_historical_bar(
+                                        bar_data, finalized=False, source='realtime'))
 
                                 loop.call_soon_threadsafe(create_task_upsert)
                             except RuntimeError:
                                 def run_async():
                                     try:
-                                        asyncio.run(self.upsert_historical_bar(bar_data, finalized=False, source='realtime'))
+                                        asyncio.run(
+                                            self.upsert_historical_bar(
+                                                bar_data, finalized=False, source='realtime'))
                                     except Exception as e:
-                                        logger.error(f"❌ Async upsert error: {e}")
+                                        logger.error(
+                                            f"❌ Async upsert error: {e}")
                                 threading.Thread(target=run_async).start()
                     else:
                         # New format - parse from string data
@@ -375,17 +393,20 @@ class RealDataFetcher:
                                     loop = asyncio.get_running_loop()
 
                                     def create_task_upsert2():
-                                        return asyncio.create_task(
-                                            self.upsert_historical_bar(bar_data, finalized=False, source='realtime')
-                                        )
+                                        return asyncio.create_task(self.upsert_historical_bar(
+                                            bar_data, finalized=False, source='realtime'))
 
-                                    loop.call_soon_threadsafe(create_task_upsert2)
+                                    loop.call_soon_threadsafe(
+                                        create_task_upsert2)
                                 except RuntimeError:
                                     def run_async2():
                                         try:
-                                            asyncio.run(self.upsert_historical_bar(bar_data, finalized=False, source='realtime'))
+                                            asyncio.run(
+                                                self.upsert_historical_bar(
+                                                    bar_data, finalized=False, source='realtime'))
                                         except Exception as e:
-                                            logger.error(f"❌ Async upsert error: {e}")
+                                            logger.error(
+                                                f"❌ Async upsert error: {e}")
                                     threading.Thread(target=run_async2).start()
 
                     # Call external callback if provided
@@ -529,7 +550,7 @@ class RealDataFetcher:
         Returns:
             DataFrame: VN-Index data
         """
-        end_date = datetime.now()
+        end_date = get_vn_time()  # Dùng timezone VN
         start_date = end_date - timedelta(days=days)
 
         try:
@@ -564,7 +585,7 @@ class RealDataFetcher:
 
     def is_market_open(self) -> bool:
         """Check if market is currently open"""
-        now = datetime.now()
+        now = get_vn_time()  # Dùng timezone VN
         weekday = now.weekday()
         # Skip weekends
         if weekday >= 5:
