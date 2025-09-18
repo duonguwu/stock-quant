@@ -1522,7 +1522,7 @@ async def get_rulebase_signals():
 
             # Format signal for frontend
             signal_formatted = {
-                'timestamp': signal['timestamp'].astimezone(VN_TZ).strftime('%Y-%m-%d %H:%M'),
+                'timestamp': signal['timestamp'].strftime('%Y-%m-%d %H:%M'),
                 'action': signal['action'],
                 'price': signal.get('price', 0),
                 'volume': signal.get('volume', 0),
