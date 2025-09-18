@@ -182,26 +182,6 @@ async def market_watchdog():
         logger.error(f"❌ Market watchdog error: {e}")
 
 
-# Thêm import cho MongoDB
-from motor.motor_asyncio import AsyncIOMotorClient
-from datetime import datetime, timedelta
-import pytz
-
-# Thêm kết nối MongoDB cho rule-based signals
-RULEBASE_DB = None
-
-async def init_rulebase_db():
-    """Initialize MongoDB connection for rule-based signals"""
-    global RULEBASE_DB
-    try:
-        client = AsyncIOMotorClient("mongodb://localhost:27017")
-        RULEBASE_DB = client.stock_quant.rulebase_signals
-        print("✅ Rule-based signals database connected")
-    except Exception as e:
-        print(f"❌ Rule-based signals database error: {e}")
-        RULEBASE_DB = None
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
@@ -259,9 +239,6 @@ async def lifespan(app: FastAPI):
 
         # Start watchdog to auto-switch open/close states
         # asyncio.create_task(market_watchdog())
-
-        # Initialize rulebase database
-        await init_rulebase_db()
 
         yield
 
@@ -1558,22 +1535,21 @@ async def get_realtime_signals():
 @app.get("/api/rulebase-signals")
 async def get_rulebase_signals():
     """Get rule-based signals from database"""
-    global RULEBASE_DB
-    
-    try:
-        if RULEBASE_DB is None:
-            await init_rulebase_db()
-            
-        if RULEBASE_DB is None:
-            return JSONResponse({
-                'status': 'error',
-                'message': 'No rule-based database connection available'
-            })
+    global data_fetcher
 
+    if data_fetcher is None or data_fetcher.db is None:
+        return JSONResponse({
+            'status': 'error',
+            'message': 'No database connection available'
+        })
+
+    signals_collection = data_fetcher.db.rulebase_signals
+
+    try:
         # Get signals from last 2 days
         cutoff_time = datetime.now() - timedelta(days=2)
         
-        cursor = RULEBASE_DB.find({
+        cursor = signals_collection.find({
             'timestamp': {'$gte': cutoff_time}
         }).sort('timestamp', -1)
 
