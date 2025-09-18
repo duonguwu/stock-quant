@@ -357,9 +357,9 @@ class RealDataFetcher:
                                 )
                             }
                             self.latest_bars[ticker] = bar_data
-                            
+
                             # BỎ UPSERT Ở ĐÂY - sẽ upsert trong main callback
-                            
+
                     else:
                         # New format - parse from string data
                         for row_str in data.get("data", []):
@@ -372,8 +372,9 @@ class RealDataFetcher:
                                             f"Close={bar_data['close']:.0f}, "
                                             f"Change="
                                             f"{bar_data['change_pct']:+.2f}%")
-                                
-                                # BỎ UPSERT Ở ĐÂY - sẽ upsert trong main callback
+
+                                # BỎ UPSERT Ở ĐÂY - sẽ upsert trong main
+                                # callback
 
                     # Call external callback if provided
                     if callback and self.latest_bars:

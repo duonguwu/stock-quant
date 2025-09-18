@@ -16,6 +16,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 # ============================================
 MONGO_URL = "mongodb://admin:password123@localhost:27017/trading_signals?authSource=admin"
 
+
 class MongoConnector:
     def __init__(self, mongo_url=MONGO_URL):
         self.mongo_url = mongo_url
@@ -52,10 +53,12 @@ class MongoConnector:
                 "ticker": signal_data["ticker"],
                 "action": signal_data["action"],
                 "price": signal_data["price"],
-                "volume": signal_data.get("volume", 0),
+                "volume": signal_data.get(
+                    "volume",
+                    0),
                 "timestamp": signal_data["timestamp"],
-                "created_at": datetime.now(pytz.timezone("Asia/Ho_Chi_Minh"))
-            }
+                "created_at": datetime.now(
+                    pytz.timezone("Asia/Ho_Chi_Minh"))}
             await self.signals_col.update_one({"_id": doc["_id"]}, {"$set": doc}, upsert=True)
             print(f"✅ Saved signal: {doc['_id']}")
         except Exception as e:
@@ -66,6 +69,7 @@ class MongoConnector:
 # Run coroutine trong main loop
 # ============================================
 main_loop = None
+
 
 def run_in_main_loop(coro):
     """Đảm bảo coroutine chạy trong main event loop."""
@@ -80,6 +84,7 @@ def run_in_main_loop(coro):
 # ============================================
 MONGO = MongoConnector()
 
+
 def make_on_window():
     """Callback: mỗi khi có nến 15m mới cho 1 ticker"""
     def _on_window(df_window: pd.DataFrame):
@@ -89,11 +94,13 @@ def make_on_window():
         # ✅ Luôn lưu signal (BUY/SELL/HOLD)
         signal_data = {
             "ticker": latest["ticker"],
-            "action": "BUY" if latest["signal"] == 1 else "SELL" if latest["signal"] == -1 else "HOLD",
+            "action": "BUY" if latest["signal"] == 1 else "SELL" if latest["signal"] == -
+            1 else "HOLD",
             "price": latest["close"],
-            "volume": latest.get("volume", 0),
-            "timestamp": latest["timestamp"]
-        }
+            "volume": latest.get(
+                "volume",
+                0),
+            "timestamp": latest["timestamp"]}
 
         # chạy coroutine trong main loop
         run_in_main_loop(MONGO.save_signal(signal_data))
@@ -101,7 +108,8 @@ def make_on_window():
         # log terminal
         tkr = latest["ticker"]
         ts = pd.to_datetime(latest["timestamp"])
-        print(f"{tkr} at {ts} - Signal: {signal_data['action']} (Price: {latest['close']})")
+        print(
+            f"{tkr} at {ts} - Signal: {signal_data['action']} (Price: {latest['close']})")
 
     return _on_window
 

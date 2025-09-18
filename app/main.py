@@ -1135,136 +1135,153 @@ async def deduplicate_signals(signals_list):
 
 
 @app.get("/api/dashboard-charts")
-async def get_dashboard_charts():
-    """API endpoint with deduplicated realtime signals merged"""
+async def get_dashboard_charts(start: str = None, end: str = None):
+    """API endpoint with deduplicated realtime signals merged.
+    Optional query params: start, end in YYYY-MM-DD (VN time)
+    """
     global historical_data, model_inference, feature_engine, current_data
 
     try:
-        if 'raw_data' not in historical_data or 'features_data' not in historical_data:
-            return JSONResponse({
-                'status': 'error',
-                'message': 'No data available. Please load historical data first.'
-            })
+        # Parse date range (VN)
+        start_dt = None
+        end_dt = None
+        if start:
+            start_dt = datetime.strptime(start, '%Y-%m-%d')
+        if end:
+            end_dt = datetime.strptime(end, '%Y-%m-%d') + timedelta(days=1)
 
-        # Lấy data 2 ngày gần nhất
-        cutoff_date = pd.to_datetime(get_vn_date_str()) - timedelta(days=2)
-        raw_data = historical_data['raw_data']
-        features_data = historical_data['features_data']
+        # Load raw price data
+        tickers = ['CTG', 'MBB', 'ACB', 'QNS', 'MSH']
+        recent_raw = None
+        recent_features = None
 
-        # Filter data 2 ngày gần nhất
-        recent_raw = raw_data[raw_data['timestamp'] >= cutoff_date].copy()
-        recent_features = features_data[features_data['timestamp'] >= cutoff_date].copy(
-        )
+        # Prefer DB when range is provided or market is closed
+        loaded_from_db = False
+        if (data_fetcher is not None) and (getattr(data_fetcher, 'db', None) is not None) and (start_dt or end_dt):
+            try:
+                query = { 'ticker': { '$in': tickers } }
+                if start_dt and end_dt:
+                    query['timestamp'] = { '$gte': start_dt, '$lt': end_dt }
+                elif start_dt:
+                    query['timestamp'] = { '$gte': start_dt }
+                elif end_dt:
+                    query['timestamp'] = { '$lt': end_dt }
 
-        # 🔥 NEW: Kết hợp với realtime data nếu có
-        if current_data and 'latest_bars' in current_data:
-            latest_bars = current_data['latest_bars']
+                cursor = data_fetcher.db.historical_data.find(query)
+                rows = await cursor.to_list(length=200000)
+                if rows:
+                    df = pd.DataFrame(rows)
+                    if 'timestamp' in df.columns:
+                        # Giữ kiểu thời gian như trong DB (thường là datetime aware). Không convert tz.
+                        pass
+                    recent_raw = df.sort_values(['ticker', 'timestamp'])
+                    loaded_from_db = True
+            except Exception as db_err:
+                logger.warning(f"⚠️ DB load failed for dashboard-charts: {db_err}")
 
-            # Convert latest bars to DataFrame
-            latest_rows = []
-            for ticker, bar in latest_bars.items():
-                latest_rows.append({
-                    'ticker': ticker,
-                    'timestamp': bar['timestamp'],
-                    'open': bar['open'],
-                    'high': bar['high'],
-                    'low': bar['low'],
-                    'close': bar['close'],
-                    'volume': bar['volume']
+        # Fallback: use in-memory last 2 days
+        if recent_raw is None:
+            if 'raw_data' not in historical_data:
+                return JSONResponse({
+                    'status': 'error',
+                    'message': 'No data available. Please load historical data first.'
                 })
+            cutoff_date = pd.to_datetime(get_vn_date_str()) - timedelta(days=2)
+            raw_data = historical_data['raw_data']
+            features_data = historical_data.get('features_data')
+            recent_raw = raw_data[raw_data['timestamp'] >= cutoff_date].copy()
+            if features_data is not None:
+                recent_features = features_data[features_data['timestamp'] >= cutoff_date].copy()
 
+        # Merge realtime bars if available and no explicit end provided
+        if current_data and 'latest_bars' in current_data and not end_dt:
+            latest_rows = []
+            for t, bar in current_data['latest_bars'].items():
+                latest_rows.append({
+                    'ticker': t,
+                    'timestamp': bar['timestamp'],
+                    'open': bar.get('open'),
+                    'high': bar.get('high'),
+                    'low': bar.get('low'),
+                    'close': bar.get('close'),
+                    'volume': bar.get('volume', 0)
+                })
             if latest_rows:
                 latest_df = pd.DataFrame(latest_rows)
-                recent_raw = pd.concat(
-                    [recent_raw, latest_df], ignore_index=True)
-                recent_raw = recent_raw.sort_values(['ticker', 'timestamp'])
-                recent_raw = recent_raw.drop_duplicates(
+                recent_raw = pd.concat([recent_raw, latest_df], ignore_index=True)
+                recent_raw = recent_raw.sort_values(['ticker', 'timestamp']).drop_duplicates(
                     ['ticker', 'timestamp'], keep='last')
 
-        # Get realtime signals from database
+        # Load realtime signals from DB, filter by range if provided
         realtime_signals_response = {}
         try:
             if data_fetcher and data_fetcher.db:
                 signals_collection = data_fetcher.db.realtime_signals
-                cutoff_time = datetime.now() - timedelta(days=2)
+                sig_query = {}
+                if start_dt and end_dt:
+                    sig_query['timestamp'] = { '$gte': start_dt, '$lt': end_dt }
+                elif start_dt:
+                    sig_query['timestamp'] = { '$gte': start_dt }
+                elif end_dt:
+                    sig_query['timestamp'] = { '$lt': end_dt }
+                else:
+                    sig_query['timestamp'] = { '$gte': datetime.now() - timedelta(days=2) }
 
-                cursor = signals_collection.find({
-                    'timestamp': {'$gte': cutoff_time}
-                }).sort('timestamp', -1)
+                cursor = signals_collection.find(sig_query).sort('timestamp', -1)
+                db_signals = await cursor.to_list(length=2000)
 
-                db_signals = await cursor.to_list(length=1000)
-
-                # Group and deduplicate signals
                 for signal in db_signals:
-                    ticker = signal['ticker']
+                    t = signal['ticker']
                     conf_level = signal['confidence_level']
+                    if t not in realtime_signals_response:
+                        realtime_signals_response[t] = {}
+                    if conf_level not in realtime_signals_response[t]:
+                        realtime_signals_response[t][conf_level] = []
 
-                    if ticker not in realtime_signals_response:
-                        realtime_signals_response[ticker] = {}
-
-                    if conf_level not in realtime_signals_response[ticker]:
-                        realtime_signals_response[ticker][conf_level] = []
-
-                    # Floor timestamp to 15m for consistency
                     floored = signal['timestamp'].replace(
-                        minute=(
-                            signal['timestamp'].minute //
-                            15) *
-                        15,
+                        minute=(signal['timestamp'].minute // 15) * 15,
                         second=0,
-                        microsecond=0)
-
-                    # Format signal for frontend - handle both old and new data format
+                        microsecond=0
+                    )
                     signal_formatted = {
                         'timestamp': floored.strftime('%Y-%m-%d %H:%M'),
                         'action': signal['action'],
-                        'confidence': signal['confidence'],
-                        # Handle both old and new price fields
+                        'confidence': signal.get('confidence'),
                         'price': signal.get('price_close_15m', signal.get('price', 0)),
                         'price_at_signal': signal.get('price_at_signal', signal.get('price', 0)),
                         'volume': signal.get('volume', 0),
                         'change_pct': signal.get('change_pct', 0),
-                        'window_start': signal.get('window_start', signal['timestamp']).strftime('%Y-%m-%d %H:%M'),
+                        'window_start': signal.get('window_start', signal['timestamp']).strftime('%Y-%m-%d %H:%M')
+                        if isinstance(signal.get('window_start', signal['timestamp']), datetime)
+                        else str(signal.get('window_start', '')),
                         'source': signal.get('source', 'unknown'),
                         'confidence_threshold': signal.get('confidence_threshold', 0),
-                        # Add data format indicator for debugging
                         'data_format': 'new' if 'price_close_15m' in signal else 'old'
                     }
-                    realtime_signals_response[ticker][conf_level].append(
-                        signal_formatted)
+                    realtime_signals_response[t][conf_level].append(signal_formatted)
 
-                # Deduplicate signals for each ticker and confidence level (15m
-                # bucket)
-                for ticker in realtime_signals_response:
-                    for conf_level in realtime_signals_response[ticker]:
-                        realtime_signals_response[ticker][conf_level] = await deduplicate_signals(
-                            realtime_signals_response[ticker][conf_level]
+                # Deduplicate (15m bucket)
+                for t in list(realtime_signals_response.keys()):
+                    for conf_level in list(realtime_signals_response[t].keys()):
+                        realtime_signals_response[t][conf_level] = await deduplicate_signals(
+                            realtime_signals_response[t][conf_level]
                         )
-
-                logger.info(
-                    f"📡 Loaded {len(db_signals)} realtime signals from DB")
-
         except Exception as db_error:
             logger.warning(f"⚠️ Could not load realtime signals: {db_error}")
 
+        # Build dashboard data per ticker
         dashboard_data = {}
-        tickers = ['CTG', 'MBB', 'ACB', 'QNS', 'MSH']
-
-        for ticker in tickers:
-            # Get ticker data
-            ticker_raw = recent_raw[recent_raw['ticker'] == ticker].copy()
-            ticker_features = recent_features[recent_features['ticker'] == ticker].copy(
-            )
-
+        for t in tickers:
+            ticker_raw = recent_raw[recent_raw['ticker'] == t].copy()
             if len(ticker_raw) == 0:
-                logger.warning(f"⚠️ No raw data for {ticker}")
                 continue
 
-            # Prepare price data for chart
             price_data = []
             for _, row in ticker_raw.iterrows():
+                ts = row['timestamp']
+                ts_str = ts.strftime('%Y-%m-%d %H:%M') if hasattr(ts, 'strftime') else str(ts)
                 price_data.append({
-                    'timestamp': row['timestamp'].strftime('%Y-%m-%d %H:%M'),
+                    'timestamp': ts_str,
                     'open': float(row.get('open', 0)),
                     'high': float(row.get('high', 0)),
                     'low': float(row.get('low', 0)),
@@ -1272,7 +1289,7 @@ async def get_dashboard_charts():
                     'volume': int(row.get('volume', 0))
                 })
 
-            # Initialize signals structure
+            # Initialize confidence buckets
             confidence_signals = {
                 'conf_0.4': {'threshold': 0.4, 'signals': [], 'total_signals': 0},
                 'conf_0.5': {'threshold': 0.5, 'signals': [], 'total_signals': 0},
@@ -1281,88 +1298,27 @@ async def get_dashboard_charts():
                 'conf_0.8': {'threshold': 0.8, 'signals': [], 'total_signals': 0}
             }
 
-            # 🔥 Merge realtime signals from database (deduped by 15m bucket)
-            if ticker in realtime_signals_response:
-                for conf_level, signals in realtime_signals_response[ticker].items(
-                ):
+            # Merge realtime signals (from DB)
+            if t in realtime_signals_response:
+                for conf_level, sigs in realtime_signals_response[t].items():
                     if conf_level in confidence_signals:
-                        confidence_signals[conf_level]['signals'] = signals
-                        confidence_signals[conf_level]['total_signals'] = len(
-                            signals)
-                        logger.info(
-                            f"📊 {ticker} {conf_level}: merged {len(signals)} realtime signals")
+                        confidence_signals[conf_level]['signals'] = sigs
+                        confidence_signals[conf_level]['total_signals'] = len(sigs)
 
-            # Try model inference for additional signals (nếu cần)
-            if len(ticker_features) > 0 and model_inference:
-                logger.info(
-                    f"🧠 Processing {ticker}: {len(ticker_features)} feature rows")
-
-                try:
-                    feature_cols = feature_engine.get_feature_list(
-                        ticker_features)
-                    features_only = ticker_features[feature_cols].fillna(0)
-                    tickers_list = [ticker] * len(features_only)
-
-                    # Get model predictions
-                    predictions = model_inference.predict_with_confidence(
-                        features_only, tickers_list)
-
-                    # Add model-generated signals to confidence_signals if not
-                    # already present (bucket to 15m)
-                    for conf_level, conf_data in predictions.items():
-                        signals = conf_data.get('signals', [])
-                        model_signals = []
-
-                        for i, signal in enumerate(signals):
-                            if signal.get('action') != 'HOLD' and i < len(
-                                    ticker_features):
-                                timestamp = ticker_features.iloc[i]['timestamp']
-                                price = ticker_raw.iloc[i]['close'] if i < len(
-                                    ticker_raw) else 0
-                                floored = timestamp.replace(
-                                    minute=(
-                                        timestamp.minute //
-                                        15) *
-                                    15,
-                                    second=0,
-                                    microsecond=0)
-                                model_signals.append({
-                                    'timestamp': floored.strftime('%Y-%m-%d %H:%M'),
-                                    'action': signal['action'],
-                                    'confidence': signal['confidence'],
-                                    'price': float(price)
-                                })
-
-                        # Merge with existing realtime signals
-                        if conf_level in confidence_signals:
-                            existing_signals = confidence_signals[conf_level]['signals']
-                            combined_signals = existing_signals + model_signals
-
-                            # Deduplicate combined signals (15m bucket)
-                            deduplicated = await deduplicate_signals(combined_signals)
-
-                            confidence_signals[conf_level]['signals'] = deduplicated
-                            confidence_signals[conf_level]['total_signals'] = len(
-                                deduplicated)
-
-                            logger.info(
-                                f"🔀 {ticker} {conf_level}: combined {len(existing_signals)} + {len(model_signals)} = {len(deduplicated)} signals")
-
-                except Exception as model_error:
-                    logger.warning(
-                        f"⚠️ Model inference failed for {ticker}: {model_error}")
-
-            dashboard_data[ticker] = {
+            dashboard_data[t] = {
                 'price_data': price_data,
                 'signals': confidence_signals,
                 'data_range': {
-                    'start': ticker_raw['timestamp'].min().strftime('%Y-%m-%d %H:%M'),
-                    'end': ticker_raw['timestamp'].max().strftime('%Y-%m-%d %H:%M'),
-                    'total_bars': len(ticker_raw)}}
+                    'start': price_data[0]['timestamp'],
+                    'end': price_data[-1]['timestamp'],
+                    'total_bars': len(price_data)
+                }
+            }
 
         return JSONResponse({
             'status': 'success',
             'data': dashboard_data,
+            'loaded_from_db': loaded_from_db,
             'last_updated': datetime.now().isoformat()
         })
 
@@ -1566,7 +1522,7 @@ async def get_rulebase_signals():
 
             # Format signal for frontend
             signal_formatted = {
-                'timestamp': signal['timestamp'].strftime('%Y-%m-%d %H:%M'),
+                'timestamp': signal['timestamp'].astimezone(VN_TZ).strftime('%Y-%m-%d %H:%M'),
                 'action': signal['action'],
                 'price': signal.get('price', 0),
                 'volume': signal.get('volume', 0),

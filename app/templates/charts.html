@@ -361,9 +361,15 @@
                 </button>
         </div>
 
-                <div class="status-text" id="load-status">
+                                <div class="status-text" id="load-status">
                     Click to load latest signal analysis or refresh data từ FiinQuantX...
-        </div>
+                </div>
+                <div style="display:flex; gap:12px; align-items:center; margin-top:8px;">
+                    <label>Start:</label>
+                    <input type="date" id="start-date" />
+                    <label>End:</label>
+                    <input type="date" id="end-date" />
+                </div>
 
                 <div class="data-info" id="data-info" style="display: none;">
                     <strong>Data Range:</strong> <span id="data-range">Loading...</span><br>
@@ -421,8 +427,15 @@
 
             try {
                 // Load both dashboard data and realtime signals in parallel
+                const startEl = document.getElementById('start-date');
+                const endEl = document.getElementById('end-date');
+                const qs = [];
+                if (startEl.value) qs.push(`start=${startEl.value}`);
+                if (endEl.value) qs.push(`end=${endEl.value}`);
+                const query = qs.length ? `?${qs.join('&')}` : '';
+
                 const [dashboardResponse, signalsResponse] = await Promise.all([
-                    fetch('/api/dashboard-charts'),
+                    fetch(`/api/dashboard-charts${query}`),
                     fetch('/api/realtime-signals')
                 ]);
                 
@@ -932,7 +945,7 @@
     </script>
 </body>
 </html> 
-        /* Enhanced Tooltip Styles */
+        <!-- /* Enhanced Tooltip Styles */
         .chartjs-tooltip {
             background: rgba(0, 0, 0, 0.9) !important;
             border: 2px solid #3498db !important;
@@ -967,4 +980,4 @@
         .chart-container:hover {
             box-shadow: 0 12px 40px rgba(0,0,0,0.15);
             transition: box-shadow 0.3s ease;
-        }
+        } -->
