@@ -220,7 +220,7 @@ async def lifespan(app: FastAPI):
         calculate_initial_features()
 
         # Market-aware: run realtime or off-market batch
-        if data_fetcher.is_market_open():
+        if True:
             start_realtime_pipeline()
             realtime_running = True
         else:
