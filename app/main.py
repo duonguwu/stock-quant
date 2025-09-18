@@ -182,6 +182,26 @@ async def market_watchdog():
         logger.error(f"❌ Market watchdog error: {e}")
 
 
+# Thêm import cho MongoDB
+from motor.motor_asyncio import AsyncIOMotorClient
+from datetime import datetime, timedelta
+import pytz
+
+# Thêm kết nối MongoDB cho rule-based signals
+RULEBASE_DB = None
+
+async def init_rulebase_db():
+    """Initialize MongoDB connection for rule-based signals"""
+    global RULEBASE_DB
+    try:
+        client = AsyncIOMotorClient("mongodb://localhost:27017")
+        RULEBASE_DB = client.stock_quant.rulebase_signals
+        print("✅ Rule-based signals database connected")
+    except Exception as e:
+        print(f"❌ Rule-based signals database error: {e}")
+        RULEBASE_DB = None
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
@@ -239,6 +259,9 @@ async def lifespan(app: FastAPI):
 
         # Start watchdog to auto-switch open/close states
         # asyncio.create_task(market_watchdog())
+
+        # Initialize rulebase database
+        await init_rulebase_db()
 
         yield
 
@@ -972,6 +995,15 @@ async def charts_page(request: Request):
         })
 
 
+@app.get("/charts-rulebase")
+async def charts_rulebase():
+    """Rule-based signal analysis page"""
+    return templates.TemplateResponse("charts_rulebase.html", {
+        "request": request,
+        "page_title": "Rule-Based Signal Analysis"
+    })
+
+
 @app.get("/api/chart-data/{ticker}")
 async def get_chart_data(ticker: str):
     """API endpoint để lấy chart data cho một ticker cụ thể"""
@@ -1138,7 +1170,7 @@ async def get_dashboard_charts():
             })
 
         # Lấy data 2 ngày gần nhất
-        cutoff_date = datetime.now() - timedelta(days=2)
+        cutoff_date = pd.to_datetime(get_vn_date_str()) - timedelta(days=2)
         raw_data = historical_data['raw_data']
         features_data = historical_data['features_data']
 
@@ -1196,8 +1228,18 @@ async def get_dashboard_charts():
                     if conf_level not in realtime_signals_response[ticker]:
                         realtime_signals_response[ticker][conf_level] = []
 
+                    # Floor timestamp to 15m for consistency
+                    floored = signal['timestamp'].replace(
+                        minute=(
+                            signal['timestamp'].minute //
+                            15) *
+                        15,
+                        second=0,
+                        microsecond=0)
+
+                    # Format signal for frontend - handle both old and new data format
                     signal_formatted = {
-                        'timestamp': signal['timestamp'].strftime('%Y-%m-%d %H:%M'),
+                        'timestamp': floored.strftime('%Y-%m-%d %H:%M'),
                         'action': signal['action'],
                         'confidence': signal['confidence'],
                         # Handle both old and new price fields
@@ -1507,6 +1549,69 @@ async def get_realtime_signals():
 
     except Exception as e:
         logger.error(f"❌ Realtime signals API error: {e}")
+        return JSONResponse({
+            'status': 'error',
+            'message': str(e)
+        })
+
+
+@app.get("/api/rulebase-signals")
+async def get_rulebase_signals():
+    """Get rule-based signals from database"""
+    global RULEBASE_DB
+    
+    try:
+        if RULEBASE_DB is None:
+            await init_rulebase_db()
+            
+        if RULEBASE_DB is None:
+            return JSONResponse({
+                'status': 'error',
+                'message': 'No rule-based database connection available'
+            })
+
+        # Get signals from last 2 days
+        cutoff_time = datetime.now() - timedelta(days=2)
+        
+        cursor = RULEBASE_DB.find({
+            'timestamp': {'$gte': cutoff_time}
+        }).sort('timestamp', -1)
+
+        # Limit to 1000 recent signals
+        signals = await cursor.to_list(length=1000)
+
+        # Group by ticker
+        grouped_signals = {}
+        for signal in signals:
+            ticker = signal['ticker']
+            
+            if ticker not in grouped_signals:
+                grouped_signals[ticker] = []
+
+            # Format signal for frontend
+            signal_formatted = {
+                'timestamp': signal['timestamp'].strftime('%Y-%m-%d %H:%M'),
+                'action': signal['action'],
+                'price': signal.get('price', 0),
+                'volume': signal.get('volume', 0),
+                'created_at': signal.get('created_at', signal['timestamp']).strftime('%Y-%m-%d %H:%M'),
+                'ticker': ticker
+            }
+            grouped_signals[ticker].append(signal_formatted)
+
+        # Sort signals by timestamp for each ticker
+        for ticker in grouped_signals:
+            grouped_signals[ticker].sort(key=lambda x: x['timestamp'])
+
+        return JSONResponse({
+            'status': 'success',
+            'data': grouped_signals,
+            'total_signals': sum(len(signals) for signals in grouped_signals.values()),
+            'last_updated': datetime.now().isoformat()
+        })
+
+    except Exception as e:
+        logger.error(f"❌ Rule-based signals API error: {e}")
         return JSONResponse({
             'status': 'error',
             'message': str(e)
