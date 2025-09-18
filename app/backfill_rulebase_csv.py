@@ -16,6 +16,7 @@ from datetime import datetime
 from typing import List
 
 import pandas as pd
+import pytz
 from pymongo import MongoClient, UpdateOne
 
 # =====================
@@ -32,11 +33,20 @@ DEFAULT_VOLUME = 10000
 # =====================
 
 SIGNAL_MAP = {1: "BUY", 0: "HOLD", -1: "SELL"}
+VN_TZ = pytz.timezone("Asia/Ho_Chi_Minh")
 
 
-def to_naive(dt: pd.Timestamp) -> datetime:
-    if isinstance(dt, pd.Timestamp):
-        return dt.to_pydatetime().replace(tzinfo=None)
+def ensure_vn_time(dt: pd.Timestamp) -> datetime:
+    """Chuyển timestamp sang VN timezone và bỏ tzinfo (naive)."""
+    if not isinstance(dt, pd.Timestamp):
+        dt = pd.to_datetime(dt, errors="coerce")
+    if dt is pd.NaT:
+        return None
+    # Nếu chưa có tz → coi như VN time
+    if dt.tzinfo is None:
+        dt = dt.tz_localize(VN_TZ)
+    else:
+        dt = dt.tz_convert(VN_TZ)
     return dt.replace(tzinfo=None)
 
 
@@ -61,7 +71,10 @@ def main() -> None:
     now_utc = datetime.utcnow()
 
     for _, r in df.iterrows():
-        ts_local: datetime = to_naive(r["ts_local"])  # lưu dạng naive theo local time
+        ts_local: datetime = ensure_vn_time(r["ts_local"])
+        if ts_local is None:
+            continue
+
         ts_local_str = ts_local.strftime("%Y-%m-%d %H:%M:%S")
         ticker = str(r["ticker"]).strip().upper()
         action = str(r["action"]).upper()
@@ -75,8 +88,8 @@ def main() -> None:
             "action": action,
             "price": price,
             "volume": DEFAULT_VOLUME,
-            "timestamp": ts_local,
-            "created_at": now_utc,
+            "timestamp": ts_local,  # VN time (naive)
+            "created_at": now_utc,  # UTC time
             "method": method,
             "source": "csv_import",
         }
@@ -84,12 +97,4 @@ def main() -> None:
 
     if ops:
         res = col.bulk_write(ops, ordered=False)
-        upserts = getattr(res, "upserted_count", 0)
-        mods = res.modified_count
-        print(f"✅ Imported: upserted={upserts}, modified={mods}, total_ops={len(ops)}")
-    else:
-        print("ℹ️ No rows to import.")
-
-
-if __name__ == "__main__":
-    main() 
+        upserts = getattr(res, "upser
