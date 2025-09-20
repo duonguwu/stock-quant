@@ -1404,11 +1404,18 @@ async def refresh_data():
 
 
 @app.get("/api/realtime-signals")
-async def get_realtime_signals():
+async def get_realtime_signals(start: str = None, end: str = None):
     """Get recent realtime signals from database for dashboard overlay"""
     global data_fetcher
 
     try:
+        start_dt = None
+        end_dt = None
+        if start:
+            start_dt = datetime.strptime(start, '%Y-%m-%d')
+        if end:
+            end_dt = datetime.strptime(end, '%Y-%m-%d') + timedelta(days=1)
+
         if data_fetcher is None or data_fetcher.db is None:
             return JSONResponse({
                 'status': 'error',
@@ -1417,11 +1424,8 @@ async def get_realtime_signals():
 
         signals_collection = data_fetcher.db.realtime_signals
 
-        # Get signals from last 2 days
-        cutoff_time = datetime.now() - timedelta(days=2)
-
         cursor = signals_collection.find({
-            'timestamp': {'$gte': cutoff_time}
+            'timestamp': {'$gte': start_dt, '$lt': end_dt}
         }).sort('timestamp', -1)
 
         # Limit to 1000 recent signals
@@ -1515,7 +1519,6 @@ async def get_rulebase_signals(start: str = None, end: str = None):
 
         # Limit to 1000 recent signals
         signals = await cursor.to_list(length=1000)
-        print("========= signals: ===========", signals)
         # Group by ticker
         grouped_signals = {}
         for signal in signals:
@@ -1538,7 +1541,6 @@ async def get_rulebase_signals(start: str = None, end: str = None):
         # Sort signals by timestamp for each ticker
         for ticker in grouped_signals:
             grouped_signals[ticker].sort(key=lambda x: x['timestamp'])
-        print("========= grouped_signals: ===========", grouped_signals)
         return JSONResponse({
             'status': 'success',
             'data': grouped_signals,

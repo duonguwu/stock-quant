@@ -436,7 +436,7 @@
 
                 const [dashboardResponse, signalsResponse] = await Promise.all([
                     fetch(`/api/dashboard-charts${query}`),
-                    fetch('/api/realtime-signals')
+                    fetch(`/api/realtime-signals${query}`)
                 ]);
                 
                 const dashboardResult = await dashboardResponse.json();
