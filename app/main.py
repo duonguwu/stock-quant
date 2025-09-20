@@ -1489,7 +1489,7 @@ async def get_realtime_signals():
 
 
 @app.get("/api/rulebase-signals")
-async def get_rulebase_signals():
+async def get_rulebase_signals(start: str = None, end: str = None):
     """Get rule-based signals from database"""
     global data_fetcher
 
@@ -1502,16 +1502,20 @@ async def get_rulebase_signals():
     signals_collection = data_fetcher.db.rulebase_signals
 
     try:
-        # Get signals from last 2 days
-        cutoff_time = datetime.now() - timedelta(days=2)
-        
+        start_dt = None
+        end_dt = None
+        if start:
+            start_dt = datetime.strptime(start, '%Y-%m-%d')
+        if end:
+            end_dt = datetime.strptime(end, '%Y-%m-%d') + timedelta(days=1)
+
         cursor = signals_collection.find({
-            'timestamp': {'$gte': cutoff_time}
+            'timestamp': {'$gte': start_dt, '$lt': end_dt}
         }).sort('timestamp', -1)
 
         # Limit to 1000 recent signals
         signals = await cursor.to_list(length=1000)
-
+        print("========= signals: ===========", signals)
         # Group by ticker
         grouped_signals = {}
         for signal in signals:
@@ -1534,7 +1538,7 @@ async def get_rulebase_signals():
         # Sort signals by timestamp for each ticker
         for ticker in grouped_signals:
             grouped_signals[ticker].sort(key=lambda x: x['timestamp'])
-
+        print("========= grouped_signals: ===========", grouped_signals)
         return JSONResponse({
             'status': 'success',
             'data': grouped_signals,
