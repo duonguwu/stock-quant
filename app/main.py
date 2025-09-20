@@ -1514,6 +1514,7 @@ async def get_rulebase_signals(start: str = None, end: str = None):
             end_dt = datetime.strptime(end, '%Y-%m-%d') + timedelta(days=1)
 
         cursor = signals_collection.find({
+            'action': {'$in': ['BUY', 'SELL']},
             'timestamp': {'$gte': start_dt, '$lt': end_dt}
         }).sort('timestamp', -1)
 
